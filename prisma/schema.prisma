@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  email              String   @unique
+  password           String
+  createdAt          DateTime @default(now())
+  raiting            String
+  logo               String   @default("https://res.cloudinary.com/dqdiocjpu/image/upload/v1741361925/nextjs_uploads/fiixoackkehzjubvt5og.png")
+  isTwoFactorEnabled Boolean  @default(false)
+  twoFactorSecret    String?
+  resetCode          String?
+  isAdmin            Boolean  @default(false)
+  comments           Comment[]
+}
+
+
+
+model Catalog {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  title    String
+  headRu   String
+  headEn   String
+  metaRu   String
+  metaEn   String
+  type     String  @default("unpublish") // "published" or "unpublish"
+  position Int
+  imageUrl String?
+  cheats   Cheat[]
+  stats    Stats[]
+}
+
+model Stats {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime @default(now())
+  titleru      String
+  titleen      String
+  metaru       String
+  metaen       String
+  aboutru      String?
+  abouten      String?
+  contentru    String?
+  contenten    String?
+  view         Int      @default(0)
+  Image1       String?
+  type         String  @default("unpublish") // "published" or "unpublish"
+  Image2       String?
+  catalogId    String   @db.ObjectId // Foreign key to Game
+  catalog      Catalog  @relation(fields: [catalogId], references: [id]) // Relation to Game
+}
+
+model Plan {
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  cheatId String  @unique
+  day     Period? @relation(name: "DayPeriod", fields: [dayId], references: [id])
+  week    Period? @relation(name: "WeekPeriod", fields: [weekId], references: [id])
+  month   Period? @relation(name: "MonthPeriod", fields: [monthId], references: [id])
+  dayId   String? @db.ObjectId
+  weekId  String? @db.ObjectId
+  monthId String? @db.ObjectId
+  cheat   Cheat?  @relation
+}
+
+model Period {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  keys         String[]
+  price        Float
+  prcent       Float
+  plansAsDay   Plan[] @relation(name: "DayPeriod")
+  plansAsWeek  Plan[] @relation(name: "WeekPeriod")
+  plansAsMonth Plan[] @relation(name: "MonthPeriod")
+}
+
+model Cheat {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  titleEn        String
+  titleRu        String
+  status         String
+  position       Int
+  aboutRu        String
+  aboutEn        String
+  image1         String
+  image2         String
+  type           String
+  link           String
+  metaTitleRu    String
+  metaTitleEn    String
+  metaRu         String
+  metaEn         String
+  tags           Json // Array of objects [{ru: "string", en: "string"}]
+  images         String[] // Array of image URLs
+  videos         String[] // Array of video URLs
+  imageUrl       String
+  functions      Json // Nested JSON structure
+  instructionRu  String
+  instructionEn  String
+  requirments    Json // Array of objects {name: value}
+  planId         String?  @unique(map: "unique_not_null")  @db.ObjectId
+  plan           Plan?    @relation(fields: [planId], references: [id])
+  catalogId      String   @db.ObjectId
+  catalog        Catalog  @relation(fields: [catalogId], references: [id])
+  comments       Comment[]
+  minimumPrice   Int @default(1000)
+}
+
+model Comment {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    text           String
+    stars          Int @default(5)
+    userId         String @db.ObjectId
+    user           User @relation(fields:[userId],references:[id])
+    createdAt      DateTime @default(now())
+    cheatId        String @db.ObjectId
+    cheat          Cheat @relation(fields:[cheatId],references:[id])
+}
+
+model Setting {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  title    String @unique
+  settings Json
+}
+
+model Reseller {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  name    String
+  email   String 
+  prcent  Float
+  createdAt  DateTime @default(now())
+}
+
+model Contact {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  help      Boolean
+  service   String   // Could be enum: telegram | vk | discord
+  status    String   // Could be enum: active | inactive
+  titleru   String
+  titleen   String
+  textru    String
+  texten    String
+  url       String
+  footer    Boolean @default(false)
+  icon      String 
+}
+
+model Promocode {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  code        String   @unique
+  percent     Int      // Max 100
+  status      String   // 'active' | 'inactive'
+  maxActivate Int
+  count       Int
+}
+
+model SmtpConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  host      String
+  port      Int
+  user      String
+  pass      String 
+  fromName  String?
+  fromEmail String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

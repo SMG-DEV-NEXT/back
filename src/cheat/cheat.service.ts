@@ -1,0 +1,255 @@
+import { Injectable } from '@nestjs/common';
+import { PlanService } from 'src/plan/plan.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateCheatDto, GetCheatsDto } from './dto';
+import { isNumber } from 'class-validator';
+
+@Injectable()
+export class CheatService {
+  fields = {
+    id: true,
+    price: true,
+    prcent: true,
+  };
+  constructor(
+    private prisma: PrismaService,
+    private planService: PlanService,
+  ) {}
+
+  // Create a new cheat
+  async create(createCheatDto: any) {
+    let isCreatedCheatWithPlanIdNull = false;
+    let cheatId = null;
+    try {
+      const { catalogId, ...data } = createCheatDto;
+      const cheat = await this.prisma.cheat.create({
+        data: {
+          ...data,
+          catalog: {
+            connect: { id: catalogId },
+          },
+        },
+      });
+      isCreatedCheatWithPlanIdNull = true;
+      cheatId = cheat.id;
+      const plan = await this.planService.create({
+        cheatId: cheat.id,
+      });
+      isCreatedCheatWithPlanIdNull = false;
+      await this.shiftPositions(createCheatDto.position);
+      return { cheat, plan };
+    } catch (error) {
+      console.log(error);
+      if (isCreatedCheatWithPlanIdNull) {
+        await this.prisma.cheat.delete({
+          where: { id: cheatId },
+        });
+      }
+      throw new Error('Missing ');
+    }
+  }
+
+  // Get all cheats
+  async getAll() {
+    return this.prisma.cheat.findMany();
+  }
+
+  async getAllWithPlans(id: string) {
+    return this.prisma.cheat.findMany({
+      where: { catalogId: id },
+      include: {
+        plan: {
+          include: {
+            day: true,
+            month: true,
+            week: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Get a cheat by its ID
+  async getById(id: string) {
+    return this.prisma.cheat.findUnique({
+      where: { id },
+      include: {
+        catalog: true,
+      },
+    });
+  }
+
+  async getCheatView(id: string) {
+    return this.prisma.cheat.findFirst({
+      where: {
+        id,
+      },
+      include: {
+        comments: {
+          include: {
+            user: true,
+          },
+        },
+        plan: {
+          include: {
+            day: {
+              select: this.fields,
+            },
+            month: {
+              select: this.fields,
+            },
+            week: {
+              select: this.fields,
+            },
+          },
+        },
+        catalog: true,
+      },
+    });
+  }
+
+  // Update a cheat
+  async update(id: string, updateCheatDto: any) {
+    const existingCheat = await this.prisma.cheat.findUnique({
+      where: { id },
+    });
+    if (
+      updateCheatDto.position !== existingCheat.position &&
+      isNumber(updateCheatDto.position)
+    ) {
+      await this.shiftPositions(existingCheat.position);
+    }
+    return this.prisma.cheat.update({
+      where: { id },
+      data: updateCheatDto,
+    });
+  }
+
+  // Delete a cheat by ID
+  async delete(id: string) {
+    const e = await this.prisma.plan.findMany({
+      where: { cheatId: id },
+    });
+    await this.prisma.plan.deleteMany({
+      where: { cheatId: id },
+    });
+    await this.prisma.cheat.delete({
+      where: { id },
+    });
+    return { message: id };
+  }
+
+  // Delete multiple cheats by IDs
+  async deleteMany(ids: string[]) {
+    await this.prisma.cheat.deleteMany({
+      where: {
+        id: {
+          in: ids,
+        },
+      },
+    });
+    await this.prisma.plan.deleteMany({
+      where: {
+        cheatId: {
+          in: ids,
+        },
+      },
+    });
+    return true;
+  }
+
+  private async shiftPositions(position: number) {
+    await this.prisma.$transaction([
+      this.prisma.cheat.updateMany({
+        where: { position: { gte: position } },
+        data: { position: { increment: 1 } },
+      }),
+    ]);
+  }
+
+  async apiCheats(dto: GetCheatsDto) {
+    const { search, page, limit, type, price_end, price_start } = dto;
+    const skip = (page - 1) * limit;
+    let cheats = [];
+
+    const [data] = await Promise.all([
+      this.prisma.cheat.findMany({
+        where: {
+          catalogId: dto.catalogId,
+          OR: [
+            { titleEn: { contains: search, mode: 'insensitive' } },
+            { titleRu: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          comments: true,
+          plan: {
+            include: {
+              day: {
+                select: this.fields,
+              },
+              month: {
+                select: this.fields,
+              },
+            },
+          },
+        },
+        orderBy: {
+          position: 'desc',
+        },
+      }),
+    ]);
+
+    // sorting
+    cheats = data.sort(
+      (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
+    );
+    if (type === 'high_price') {
+      cheats = data.sort(
+        (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0),
+      );
+    }
+
+    // if(type === 'raiting'){
+    //   data.sort(
+    //     (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0), when we have comments
+    //   )
+    // }
+
+    // max and min price info
+    const prices = [];
+    prices.push(cheats[0]?.plan?.month?.price || 0);
+    prices.push(cheats.at(-1)?.plan?.month?.price || 0);
+    prices.sort();
+
+    // filter if selected price range
+    if (price_end >= 0 && price_start >= 0) {
+      cheats = cheats.filter((e) => {
+        return (
+          (e?.plan?.day?.price || 0) >= price_start &&
+          (e?.plan?.day?.price || 0) <= price_end
+        );
+      });
+    }
+
+    const allCheats = cheats.slice(skip, skip + limit); // for pagination
+
+    return {
+      total: Math.ceil(cheats.length / limit),
+      page,
+      limit,
+      data: allCheats,
+      lowPrice: prices[0],
+      maxPrice: prices[1],
+    };
+  }
+
+  async getTopCheats() {
+    return this.prisma.cheat.findMany({
+      take: 6,
+      orderBy: {
+        position: 'desc',
+      },
+    });
+  }
+}
