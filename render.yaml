@@ -3,8 +3,7 @@ services:
     name: nestjs-app
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
-    branches: ['main']
+    startCommand: npm run start:dev
     autoDeploy: true
     regions:
       - oregon
