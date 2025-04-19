@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: nestjs-app
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    branches: ['main']
+    autoDeploy: true
+    regions:
+      - oregon
