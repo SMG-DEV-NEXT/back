@@ -5,5 +5,3 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start:dev
     autoDeploy: true
-    regions:
-      - oregon
