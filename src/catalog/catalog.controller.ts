@@ -54,7 +54,6 @@ export class CatalogController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getCatalog(@Param('id') id: string) {
     return this.catalogService.getCatalog(id);
   }
