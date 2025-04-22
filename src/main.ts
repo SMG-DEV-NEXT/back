@@ -8,9 +8,16 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
+import * as fs from 'fs';
+
+
+const httpsOptions = {
+  key: fs.readFileSync('./secrets/private.key'),
+  cert: fs.readFileSync('./secrets/certificate.crt'),
+};
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule,{httpsOptions});
   app.use(cookieParser());
   app.use(
     rateLimit({
