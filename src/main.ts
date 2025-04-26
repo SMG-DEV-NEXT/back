@@ -9,16 +9,8 @@ import * as cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import * as fs from 'fs';
 
-const httpsOptions =
-  process.env.NODE_ENV === 'development'
-    ? undefined
-    : {
-        key: fs.readFileSync('./secrets/private.key'),
-        cert: fs.readFileSync('./secrets/certificate.crt'),
-      };
-
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { httpsOptions });
+  const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.use(
     rateLimit({
