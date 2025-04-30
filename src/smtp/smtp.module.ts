@@ -10,5 +10,6 @@ import { AuthService } from 'src/auth/auth.service';
   controllers: [SmtpController],
   providers: [SmtpService, CryptoService, PrismaService],
   imports: [AuthModule],
+  exports: [SmtpService],
 })
 export class SmtpModule {}

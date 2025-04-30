@@ -13,6 +13,7 @@ import { ResellerModule } from './reseller/reseller.module';
 import { ContactModule } from './contact/contact.module';
 import { PromocodeModule } from './promocode/promocode.module';
 import { SmtpModule } from './smtp/smtp.module';
+import { CheckoutModule } from './checkout/checkout.module';
 @Module({
   imports: [
     AuthModule,
@@ -26,6 +27,7 @@ import { SmtpModule } from './smtp/smtp.module';
     ContactModule,
     PromocodeModule,
     SmtpModule,
+    CheckoutModule,
   ],
   providers: [PrismaService, MailService],
 })

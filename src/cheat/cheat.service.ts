@@ -80,7 +80,7 @@ export class CheatService {
   }
 
   async getCheatView(id: string) {
-    return this.prisma.cheat.findFirst({
+    const cheat = await this.prisma.cheat.findFirst({
       where: {
         id,
       },
@@ -92,20 +92,27 @@ export class CheatService {
         },
         plan: {
           include: {
-            day: {
-              select: this.fields,
-            },
-            month: {
-              select: this.fields,
-            },
-            week: {
-              select: this.fields,
-            },
+            day: true,
+            month: true,
+            week: true,
           },
         },
         catalog: true,
       },
     });
+    const dayCount = cheat.plan.day.keys.length;
+    const weekCount = cheat.plan.week.keys.length;
+    const monthCount = cheat.plan.month.keys.length;
+    delete cheat.plan.day.keys;
+    delete cheat.plan.week.keys;
+    delete cheat.plan.month.keys;
+
+    return {
+      ...cheat,
+      dayCount,
+      weekCount,
+      monthCount,
+    };
   }
 
   // Update a cheat

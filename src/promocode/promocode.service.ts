@@ -37,7 +37,13 @@ export class PromocodeService {
     return this.prisma.promocode.delete({ where: { id } });
   }
 
-  check(code: string) {
-    return this.prisma.promocode.findFirst({ where: { code } });
+  async check(code: string) {
+    const promo = await this.prisma.promocode.findFirst({
+      where: { code },
+    });
+    if (promo?.count >= promo?.maxActivate || promo?.status === 'inactive') {
+      return null;
+    }
+    return promo;
   }
 }
