@@ -38,6 +38,7 @@ export class AuthService {
   async login(email: string, password: string, code: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email },
+      include: { comments: true, transactions: { include: { cheat: true } } },
     });
     if (!user) {
       throw new UnauthorizedException('User not found');

@@ -12,12 +12,14 @@ import * as fs from 'fs';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // Limit each IP to 100 requests per window
-    }),
-  );
+  if (process.env.NODE_ENV !== 'development') {
+    app.use(
+      rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100, // limit each IP to 100 requests per windowMs
+      }),
+    );
+  }
 
   app.useGlobalPipes(new ValidationPipe());
   app.use(

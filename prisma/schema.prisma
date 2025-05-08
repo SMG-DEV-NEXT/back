@@ -190,3 +190,32 @@ model Transaction {
   isVisited  Boolean @default(false)
   ip         String?
 }
+
+model FaqBlock {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  titleru  String
+  titleen  String
+  aboutru  String?
+  abouten  String?
+  order    Int     @unique
+  stats    FaqStat[]
+}
+
+model FaqStat {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  faqBlockId  String @db.ObjectId
+  faqBlock   FaqBlock  @relation(fields: [faqBlockId], references: [id])
+  type       StatType
+  content    Json
+  data       Json
+  createdAt  DateTime  @default(now())
+}
+
+enum StatType {
+  TEXT
+  URL
+  CODE
+  TABLE
+  IMAGE
+  CUSTOM
+}

@@ -225,9 +225,9 @@ export class CheatService {
 
     // max and min price info
     const prices = [];
-    prices.push(cheats[0]?.plan?.month?.price || 0);
+    prices.push(cheats[0]?.plan?.day?.price || 0);
     prices.push(cheats.at(-1)?.plan?.month?.price || 0);
-    prices.sort();
+    prices.sort((a, b) => a - b);
 
     // filter if selected price range
     if (price_end >= 0 && price_start >= 0) {

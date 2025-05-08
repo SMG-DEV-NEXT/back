@@ -134,6 +134,31 @@ export class CheckoutService {
     return null;
   }
 
+  async getTransactionsClient(userId: string, page: number, limit: number) {
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        cheat: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const total = await this.prisma.transaction.count({ where: { userId } });
+    return {
+      data: transactions,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
   async getFilteredTransactions(params: {
     cheatId?: string;
     startDate?: Date;

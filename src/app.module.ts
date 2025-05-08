@@ -14,6 +14,8 @@ import { ContactModule } from './contact/contact.module';
 import { PromocodeModule } from './promocode/promocode.module';
 import { SmtpModule } from './smtp/smtp.module';
 import { CheckoutModule } from './checkout/checkout.module';
+import { FaqModule } from './faq/faq.module';
+import { StatisticModule } from './statistic/statistic.module';
 @Module({
   imports: [
     AuthModule,
@@ -28,6 +30,8 @@ import { CheckoutModule } from './checkout/checkout.module';
     PromocodeModule,
     SmtpModule,
     CheckoutModule,
+    FaqModule,
+    StatisticModule,
   ],
   providers: [PrismaService, MailService],
 })
