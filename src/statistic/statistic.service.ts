@@ -177,6 +177,8 @@ export class StatisticService {
   }
   async getRevenueTrend({ range, from, to }) {
     const now = dayjs();
+    throw new Error('💥 Искусственная ошибка для теста');
+
     let startDate: dayjs.Dayjs;
     let endDate: dayjs.Dayjs;
 
