@@ -100,12 +100,12 @@ export class CheatService {
         catalog: true,
       },
     });
-    const dayCount = cheat.plan.day.keys.length;
-    const weekCount = cheat.plan.week.keys.length;
-    const monthCount = cheat.plan.month.keys.length;
-    delete cheat.plan.day.keys;
-    delete cheat.plan.week.keys;
-    delete cheat.plan.month.keys;
+    const dayCount = cheat.plan.day?.keys.length;
+    const weekCount = cheat.plan.week?.keys.length;
+    const monthCount = cheat.plan.month?.keys.length;
+    delete cheat.plan.day?.keys;
+    delete cheat.plan.week?.keys;
+    delete cheat.plan.month?.keys;
 
     return {
       ...cheat,
