@@ -9,33 +9,54 @@ import {
 } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { CreateContactDto, UpdateContactDto } from './dto';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('contacts')
 export class ContactController {
   constructor(private readonly contactService: ContactService) {}
 
   @Post()
-  create(@Body() dto: CreateContactDto) {
-    return this.contactService.create(dto);
+  async create(@Body() dto: CreateContactDto) {
+    try {
+      return this.contactService.create(dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
-    return this.contactService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
+    try {
+      return this.contactService.update(id, dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get()
-  getAll() {
-    return this.contactService.getAll();
+  async getAll() {
+    try {
+      return this.contactService.getAll();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get(':id')
-  getContact(@Param('id') id: string) {
-    return this.contactService.getContact(id);
+  async getContact(@Param('id') id: string) {
+    try {
+      return this.contactService.getContact(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.contactService.delete(id);
+  async delete(@Param('id') id: string) {
+    try {
+      return this.contactService.delete(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }

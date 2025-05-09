@@ -9,8 +9,12 @@ export class StatisticController {
   constructor(private readonly statisticService: StatisticService) {}
 
   @Get()
-  getRevenueTrend() {
-    return this.statisticService.getStats();
+  async getRevenueTrend() {
+    try {
+      return this.statisticService.getStats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('/chart')
@@ -20,8 +24,6 @@ export class StatisticController {
     @Query('to') to?: string,
   ) {
     try {
-      throw new Error('💥 Искусственная ошибка для теста');
-
       return this.statisticService.getRevenueTrend({ range, from, to });
     } catch (error) {
       await sendErrorNotification(error);

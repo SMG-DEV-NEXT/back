@@ -15,18 +15,27 @@ import { Prisma } from '@prisma/client';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateDto } from './dto';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('catalog')
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
   @Get('/top')
   async getTopCatalogs() {
-    return this.catalogService.getTopCatalogs();
+    try {
+      return this.catalogService.getTopCatalogs();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async createCatalog(@Body() data: CreateDto) {
-    return this.catalogService.createCatalog(data);
+    try {
+      return this.catalogService.createCatalog(data);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Put(':id')
@@ -35,13 +44,21 @@ export class CatalogController {
     @Param('id') id: string,
     @Body() data: Prisma.CatalogUpdateInput,
   ) {
-    return this.catalogService.updateCatalog(id, data);
+    try {
+      return this.catalogService.updateCatalog(id, data);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllCatalogs() {
-    return this.catalogService.getAllCatalogs();
+    try {
+      return this.catalogService.getAllCatalogs();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('/all')
@@ -50,23 +67,39 @@ export class CatalogController {
     @Query('page', ParseIntPipe) page: number = 1,
     @Query('limit', ParseIntPipe) limit: number = 10,
   ) {
-    return this.catalogService.getCatalogsWithCheats({ search, page, limit });
+    try {
+      return this.catalogService.getCatalogsWithCheats({ search, page, limit });
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get(':id')
   async getCatalog(@Param('id') id: string) {
-    return this.catalogService.getCatalog(id);
+    try {
+      return this.catalogService.getCatalog(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteCatalog(@Param('id') id: string) {
-    return this.catalogService.deleteCatalog(id);
+    try {
+      return this.catalogService.deleteCatalog(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Delete()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteMultipleCatalogs(@Body('ids') ids: string[]) {
-    return this.catalogService.deleteMultipleCatalogs(ids);
+    try {
+      return this.catalogService.deleteMultipleCatalogs(ids);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }

@@ -12,6 +12,7 @@ import { CreateStatDto, UpdateBlockDto } from './dto';
 import { UpdateStatDto } from './dto';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('faq')
 export class FaqController {
@@ -19,53 +20,89 @@ export class FaqController {
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/init')
-  initBlocks() {
-    return this.faqService.initBlocks();
+  async initBlocks() {
+    try {
+      return this.faqService.initBlocks();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/block/:id')
-  getBlock(@Param('id') id: string) {
-    return this.faqService.getBlockFaq(id);
+  async getBlock(@Param('id') id: string) {
+    try {
+      return this.faqService.getBlockFaq(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/block/:id')
-  updateBlock(@Param('id') id: string, @Body() dto: UpdateBlockDto) {
-    return this.faqService.updateBlockFaq(id, dto);
+  async updateBlock(@Param('id') id: string, @Body() dto: UpdateBlockDto) {
+    try {
+      return this.faqService.updateBlockFaq(id, dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/stat')
-  createStat(@Body() dto: CreateStatDto) {
-    return this.faqService.createStat(dto);
+  async createStat(@Body() dto: CreateStatDto) {
+    try {
+      return this.faqService.createStat(dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Patch('admin/stat/:id')
-  updateStat(@Param('id') id: string, @Body() dto: UpdateStatDto) {
-    return this.faqService.updateStat(id, dto);
+  async updateStat(@Param('id') id: string, @Body() dto: UpdateStatDto) {
+    try {
+      return this.faqService.updateStat(id, dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/stat/:id')
-  getStat(@Param('id') id: string) {
-    return this.faqService.getStatById(id);
+  async getStat(@Param('id') id: string) {
+    try {
+      return this.faqService.getStatById(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/faq')
-  getAdminFaq() {
-    return this.faqService.getAllFaq();
+  async getAdminFaq() {
+    try {
+      return this.faqService.getAllFaq();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('client/faq')
-  getClientFaq() {
-    return this.faqService.getAllFaq();
+  async getClientFaq() {
+    try {
+      return this.faqService.getAllFaq();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('stats')
-  getAllStats() {
-    return this.faqService.getAllStats();
+  async getAllStats() {
+    try {
+      return this.faqService.getAllStats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }

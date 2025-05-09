@@ -2,6 +2,7 @@ import { Controller, Get, Param, Body, Put, UseGuards } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('settings')
 export class SettingsController {
@@ -13,16 +14,28 @@ export class SettingsController {
     @Param('title') title: string,
     @Body('settings') settings: any,
   ) {
-    return this.settingsService.updateSetting(title, settings);
+    try {
+      return this.settingsService.updateSetting(title, settings);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get(':title')
   async getSettingByTitle(@Param('title') title: string) {
-    return this.settingsService.getSettingByTitle(title);
+    try {
+      return this.settingsService.getSettingByTitle(title);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get()
   async getAllSettings() {
-    return this.settingsService.getAllSettings();
+    try {
+      return this.settingsService.getAllSettings();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }

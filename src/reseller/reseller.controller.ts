@@ -13,6 +13,7 @@ import { ResellerService } from './reseller.service';
 import { CreateResellerDto, UpdateResellerDto } from './dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('resellers')
 export class ResellerController {
@@ -20,40 +21,71 @@ export class ResellerController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  create(@Body() createDto: CreateResellerDto) {
-    return this.resellerService.create(createDto);
+  async create(@Body() createDto: CreateResellerDto) {
+    try {
+      return this.resellerService.create(createDto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  findAllPaginated(@Query('skip') skip = '0', @Query('take') take = '10') {
-    return this.resellerService.findAllPaginated(Number(skip), Number(take));
+  async findAllPaginated(
+    @Query('skip') skip = '0',
+    @Query('take') take = '10',
+  ) {
+    try {
+      return this.resellerService.findAllPaginated(Number(skip), Number(take));
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('raw')
-  findAllRaw() {
-    return this.resellerService.findAllRaw();
+  async findAllRaw() {
+    try {
+      return this.resellerService.findAllRaw();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.resellerService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    try {
+      return this.resellerService.findOne(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  update(@Param('id') id: string, @Body() updateDto: UpdateResellerDto) {
-    return this.resellerService.update(id, updateDto);
+  async update(@Param('id') id: string, @Body() updateDto: UpdateResellerDto) {
+    try {
+      return this.resellerService.update(id, updateDto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  remove(@Param('id') id: string) {
-    return this.resellerService.remove(id);
+  async remove(@Param('id') id: string) {
+    try {
+      return this.resellerService.remove(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Post('/check')
-  check(@Body() { email }: { email: string }) {
-    return this.resellerService.check(email);
+  async check(@Body() { email }: { email: string }) {
+    try {
+      return this.resellerService.check(email);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }

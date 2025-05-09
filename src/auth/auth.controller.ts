@@ -175,7 +175,6 @@ export class AuthController {
       await this.authService.forgetStep1(forgetDto.email);
       return res.status(200).send(true);
     } catch (error) {
-      console.log(error);
       return res.status(400).send(error);
     }
   }
@@ -189,7 +188,6 @@ export class AuthController {
       );
       return res.status(200).send(isVerify);
     } catch (error) {
-      console.log(error);
       return res.status(400).send(error);
     }
   }

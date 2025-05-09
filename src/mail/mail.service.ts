@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Injectable()
 export class MailService {
@@ -27,7 +28,7 @@ export class MailService {
       return info;
     } catch (error) {
       console.error('Error sending email:', error);
-      throw new Error('Email sending failed');
+      await sendErrorNotification(error);
     }
   }
 }

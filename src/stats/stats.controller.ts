@@ -17,6 +17,7 @@ import {
   UpdateStatsDto,
 } from './dto';
 import { AuthGuard } from '@nestjs/passport';
+import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('stats')
 export class StatsController {
@@ -25,7 +26,11 @@ export class StatsController {
   // 1. Get all games with count of stats
   @Get('/games')
   async getAllGamesWithStatsCount() {
-    return this.statsService.getAllGamesWithStatsCount();
+    try {
+      return this.statsService.getAllGamesWithStatsCount();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   //3. get stats of catalog
@@ -34,39 +39,63 @@ export class StatsController {
     @Param() params: { id: string },
     @Query() query: GetAllStatsOfCatalog,
   ) {
-    return this.statsService.getAllStatsClient(params.id, query);
+    try {
+      return this.statsService.getAllStatsClient(params.id, query);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   // 2. Get all stats of a catalog
   @Get('/admin')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllStats(@Query() query: GetAllStatsDto) {
-    return this.statsService.getAllStats(query);
+    try {
+      return this.statsService.getAllStats(query);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('/top')
   async getTopStats() {
-    return this.statsService.getTopStats();
+    try {
+      return this.statsService.getTopStats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('/:id')
   async getStat(@Param() params: { id: string }) {
-    return this.statsService.getStatWithCatalog(params.id, false);
+    try {
+      return this.statsService.getStatWithCatalog(params.id, false);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   @Get('/api/:id')
   async getStatUser(@Param() params: { id: string }) {
-    return this.statsService.getStatWithCatalog(params.id, true);
+    try {
+      return this.statsService.getStatWithCatalog(params.id, true);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   // 4. Create a stat for a game (Only Admin)
   @UseGuards(RolesGuard)
   @Post('/')
   async createStat(@Body() createStatsDto: CreateStatDto) {
-    return this.statsService.createStatForGame(
-      createStatsDto.catalogId,
-      createStatsDto,
-    );
+    try {
+      return this.statsService.createStatForGame(
+        createStatsDto.catalogId,
+        createStatsDto,
+      );
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 
   // 5. Update a stat (Only Admin)
@@ -76,6 +105,10 @@ export class StatsController {
     @Param('statId') statId: string,
     @Body() updateStatsDto: UpdateStatsDto,
   ) {
-    return this.statsService.updateStat(statId, updateStatsDto);
+    try {
+      return this.statsService.updateStat(statId, updateStatsDto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
   }
 }
