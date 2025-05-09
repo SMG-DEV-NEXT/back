@@ -16,6 +16,7 @@ import { SmtpModule } from './smtp/smtp.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { FaqModule } from './faq/faq.module';
 import { StatisticModule } from './statistic/statistic.module';
+import { StaticController } from './static.controller';
 @Module({
   imports: [
     AuthModule,
@@ -33,6 +34,7 @@ import { StatisticModule } from './statistic/statistic.module';
     FaqModule,
     StatisticModule,
   ],
+  controllers: [StaticController],
   providers: [PrismaService, MailService],
 })
 export class AppModule {}

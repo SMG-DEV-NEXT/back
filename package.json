@@ -39,6 +39,7 @@
     "csurf": "^1.10.0",
     "dayjs": "^1.11.13",
     "dompurify": "^3.2.4",
+    "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",

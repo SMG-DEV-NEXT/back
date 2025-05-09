@@ -6,9 +6,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as cookieParser from 'cookie-parser';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import * as fs from 'fs';
-import sendErrorNotification from './utils/sendTGError';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
