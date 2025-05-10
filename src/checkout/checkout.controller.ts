@@ -18,7 +18,8 @@ import * as crypto from 'crypto';
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
-  private merchantId = process.env.FREEKASSA_MERCHANT_ID;
+  private merchantId = '61';
+  // private merchantId = process.env.FREEKASSA_MERCHANT_ID;
   private secret1 = process.env.FREEKASSA_SECRET_1;
   private secret2 = process.env.FREEKASSA_SECRET_2;
   @Post()
@@ -52,24 +53,6 @@ export class CheckoutController {
     } catch (error) {
       await sendErrorNotification(error);
     }
-  }
-
-  @Get('freekassa')
-  getFreeKassaUrl(
-    @Query('orderId') orderId: string,
-    @Query('amount') amount: string,
-  ) {
-    const sign = crypto
-      .createHash('md5')
-      .update(`${this.merchantId}:${amount}:${this.secret1}:${orderId}`)
-      .digest('hex');
-    const url = new URL('https://pay.freekassa.ru/');
-    url.searchParams.set('m', this.merchantId);
-    url.searchParams.set('oa', amount);
-    url.searchParams.set('o', orderId);
-    url.searchParams.set('s', sign);
-
-    return { url: url.toString() };
   }
 
   @Get('/:id')

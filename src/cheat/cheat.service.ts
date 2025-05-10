@@ -177,7 +177,6 @@ export class CheatService {
   async apiCheats(dto: GetCheatsDto) {
     const { search, page, limit, type, price_end, price_start } = dto;
     const skip = (page - 1) * limit;
-    let cheats = [];
 
     const [data] = await Promise.all([
       this.prisma.cheat.findMany({
@@ -206,28 +205,9 @@ export class CheatService {
         },
       }),
     ]);
+    let cheats = data;
 
     // sorting
-    cheats = data.sort(
-      (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
-    );
-    if (type === 'high_price') {
-      cheats = data.sort(
-        (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0),
-      );
-    }
-
-    // if(type === 'raiting'){
-    //   data.sort(
-    //     (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0), when we have comments
-    //   )
-    // }
-
-    // max and min price info
-    const prices = [];
-    prices.push(cheats[0]?.plan?.day?.price || 0);
-    prices.push(cheats.at(-1)?.plan?.month?.price || 0);
-    prices.sort((a, b) => a - b);
 
     // filter if selected price range
     if (price_end >= 0 && price_start >= 0) {
@@ -239,6 +219,37 @@ export class CheatService {
       });
     }
 
+    if (type === 'high_price') {
+      cheats = cheats.sort(
+        (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0),
+      );
+    } else if (type === 'raiting') {
+      const cheatsWithRating = cheats.map((cheat) => {
+        const starsArray = cheat.comments.map((c) => c.stars);
+        const average =
+          starsArray.length > 0
+            ? starsArray.reduce((a, b) => a + b, 0) / starsArray.length
+            : 0;
+
+        return {
+          ...cheat,
+          rating: average,
+        };
+      });
+      cheats = cheatsWithRating.sort((a, b) => b.rating - a.rating);
+    } else {
+      cheats = cheats.sort(
+        (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
+      );
+    }
+    // max and min price info
+    const prices = [];
+    const SortingDataForLimits = data.sort(
+      (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
+    );
+    prices.push(SortingDataForLimits[0]?.plan?.day?.price || 0);
+    prices.push(SortingDataForLimits.at(-1)?.plan?.day?.price || 0);
+    prices.sort((a, b) => a - b);
     const allCheats = cheats.slice(skip, skip + limit); // for pagination
 
     return {
@@ -248,6 +259,7 @@ export class CheatService {
       data: allCheats,
       lowPrice: prices[0],
       maxPrice: prices[1],
+      hideFilterBar: data.length < 2,
     };
   }
 
