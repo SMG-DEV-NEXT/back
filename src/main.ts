@@ -7,11 +7,13 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+  app.set('trust proxy', 1);
   app.use(cookieParser());
   if (process.env.NODE_ENV !== 'development') {
     app.use(
