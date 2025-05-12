@@ -99,7 +99,7 @@ export class AuthController {
         .status(200)
         .json({ user: userWithoutPassword, token: access_token });
     } catch (error) {
-      return res.status(400).send(JSON.stringify(error));
+      return res.status(400).send(error);
     }
   }
 
