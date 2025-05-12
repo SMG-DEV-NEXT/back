@@ -32,6 +32,10 @@ export class AuthService {
         isTwoFactorEnabled: false,
         resetCode: '',
       },
+      include: {
+        transactions: true,
+        comments: true,
+      },
     });
   }
 
@@ -242,6 +246,10 @@ export class AuthService {
         name,
         password: hashedPassword,
         logo: image,
+      },
+      include: {
+        transactions: true,
+        comments: true,
       },
     });
     const { password: p, ...data } = update;
