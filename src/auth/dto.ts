@@ -1,58 +1,58 @@
 import {
-    isEmail,
-    IsEmail,
-    IsNotEmpty,
-    minLength,
-    MinLength,
+  isEmail,
+  IsEmail,
+  IsNotEmpty,
+  minLength,
+  MinLength,
 } from 'class-validator';
 export class RegisterDto {
-    @IsNotEmpty()
-    name: string;
+  @IsNotEmpty()
+  name: string;
 
-    @IsEmail()
-    email: string;
+  @IsEmail()
+  email: string;
 
-    @MinLength(8)
-    password: string;
+  @MinLength(8)
+  password: string;
 }
 
 export class UpdateDto {
-    @IsNotEmpty()
-    name: string;
+  @IsNotEmpty()
+  name: string;
 
-    image: string;
+  image: string;
 
-    @MinLength(8)
-    password: string;
+  @MinLength(5)
+  password: string;
 }
 
 // DTO for login
 export class LoginDto {
-    @IsEmail()
-    email: string;
+  @IsEmail()
+  email: string;
 
-    @MinLength(8)
-    password: string;
+  @MinLength(5)
+  password: string;
 
-    code?: string;
+  code?: string;
 
-    rememberMe: boolean;
+  rememberMe: boolean;
 }
 
 export class ForgetDtoStep1 {
-    @IsEmail()
-    email: string;
+  @IsEmail()
+  email: string;
 }
 
 export class ForgetDtoStep2 {
-    code: string;
+  code: string;
 
-    email: string;
+  email: string;
 }
 
 export class ForgetDtoStep3 {
-    @MinLength(8)
-    password: string;
+  @MinLength(5)
+  password: string;
 
-    email: string;
+  email: string;
 }

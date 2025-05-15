@@ -178,7 +178,7 @@ export class CheatService {
     const { search, page, limit, type, price_end, price_start } = dto;
     const skip = (page - 1) * limit;
 
-    const [data] = await Promise.all([
+    const [data, catalog] = await Promise.all([
       this.prisma.cheat.findMany({
         where: {
           catalogId: dto.catalogId,
@@ -204,6 +204,7 @@ export class CheatService {
           position: 'desc',
         },
       }),
+      this.prisma.catalog.findFirst({ where: { id: dto.catalogId } }),
     ]);
     let cheats = data;
 
@@ -260,6 +261,7 @@ export class CheatService {
       lowPrice: prices[0],
       maxPrice: prices[1],
       hideFilterBar: data.length < 2,
+      catalog,
     };
   }
 
