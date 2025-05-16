@@ -17,13 +17,17 @@ export class CheckoutService {
   ) {}
 
   async sendMail(to: string, codes: string[], price: any) {
-    const transporter = await this.smtpService.createTransporter();
-    await transporter.sendMail({
-      from: `"SMG" <smg@gmail.com>`,
-      to,
-      subject: 'Checkout Email',
-      text: `here is your codes ${codes.join(',')} your checkouted price is ${price}`,
-    });
+    try {
+      const transporter = await this.smtpService.createTransporter();
+      await transporter.sendMail({
+        from: `"SMG" <smg@gmail.com>`,
+        to,
+        subject: 'Checkout Email',
+        text: `here is your codes ${codes.join(',')} your checkouted price is ${price}`,
+      });
+    } catch (error) {
+      console.log(error);
+    }
   }
   // @ts-ignore
   async checkoutFunction(data: CheckoutDto, ip: string) {
