@@ -8,6 +8,8 @@ import { CheckoutDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { count } from 'console';
 import { SmtpService } from 'src/smtp/smtp.service';
+import { Transaction } from '@prisma/client';
+import { generatorAfterCheckoutMail } from 'src/mail/generator';
 
 @Injectable()
 export class CheckoutService {
@@ -16,14 +18,15 @@ export class CheckoutService {
     private smtpService: SmtpService,
   ) {}
 
-  async sendMail(to: string, codes: string[], price: any) {
+  async sendMail(transaction: Transaction) {
     try {
       const transporter = await this.smtpService.createTransporter();
+      const html = generatorAfterCheckoutMail(transaction);
       await transporter.sendMail({
         from: `"SMG" <smg@gmail.com>`,
-        to,
+        to: transaction.email,
         subject: 'Checkout Email',
-        text: `here is your codes ${codes.join(',')} your checkouted price is ${price}`,
+        html,
       });
     } catch (error) {
       console.log(error);
@@ -115,7 +118,7 @@ export class CheckoutService {
           keys: keyses.slice(data.count),
         },
       });
-      await this.sendMail(data.email, checkoutKeyses, price * data.count);
+      await this.sendMail(transaction);
       return transaction.id;
     } catch (error) {
       console.log(error);

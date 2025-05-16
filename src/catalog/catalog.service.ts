@@ -97,7 +97,19 @@ export class CatalogService {
           title: { contains: search, mode: 'insensitive' },
           type: 'published',
         },
-        include: { cheats: true },
+        include: {
+          cheats: {
+            include: {
+              plan: {
+                include: {
+                  day: true,
+                  month: true,
+                  week: true,
+                },
+              },
+            },
+          },
+        },
         skip,
         take: limit,
         orderBy: { position: 'asc' },

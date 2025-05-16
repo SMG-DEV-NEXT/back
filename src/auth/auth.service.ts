@@ -11,6 +11,7 @@ import { Response } from 'express';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { MailService } from 'src/mail/mail.service';
+import { generateForgetPasswordMail } from 'src/mail/generator';
 
 @Injectable()
 export class AuthService {
@@ -196,7 +197,7 @@ export class AuthService {
       email,
       'Reset Your Password',
       null,
-      `<p>Your pass code ${code}</p>`,
+      generateForgetPasswordMail(code),
     );
 
     return { message: 'Code sended.' };
@@ -206,13 +207,13 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found.');
     }
-    if (user.isTwoFactorEnabled) {
-      const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
-      if (!isTrueCode) {
-        throw new UnauthorizedException('Invalid 2FA code');
-      }
-      return isTrueCode;
-    }
+    // if (user.isTwoFactorEnabled) {
+    //   const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
+    //   if (!isTrueCode) {
+    //     throw new UnauthorizedException('Invalid 2FA code');
+    //   }
+    //   return isTrueCode;
+    // }
     if (user.resetCode === code) {
       await this.prisma.user.update({
         where: { email },
