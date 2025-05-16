@@ -55,12 +55,12 @@ export class AuthService {
     if (user.isTwoFactorEnabled && !code) {
       return { secret: user.twoFactorSecret };
     }
-    // if (code) {
-    //   const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
-    //   if (!isTrueCode) {
-    //     throw new UnauthorizedException('Invalid 2FA code');
-    //   }
-    // }
+    if (code) {
+      const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
+      if (!isTrueCode) {
+        throw new UnauthorizedException('Invalid 2FA code');
+      }
+    }
     const tokens = this.generateTokens(user.id);
     return {
       access_token: tokens.access_token,
@@ -207,13 +207,13 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found.');
     }
-    // if (user.isTwoFactorEnabled) {
-    //   const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
-    //   if (!isTrueCode) {
-    //     throw new UnauthorizedException('Invalid 2FA code');
-    //   }
-    //   return isTrueCode;
-    // }
+    if (user.isTwoFactorEnabled) {
+      const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
+      if (!isTrueCode) {
+        throw new UnauthorizedException('Invalid 2FA code');
+      }
+      return isTrueCode;
+    }
     if (user.resetCode === code) {
       await this.prisma.user.update({
         where: { email },
