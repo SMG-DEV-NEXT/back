@@ -5,33 +5,33 @@ import {
   minLength,
   MinLength,
 } from 'class-validator';
+
 export class RegisterDto {
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Имя не должно быть пустым' })
   name: string;
 
-  @IsEmail()
+  @IsEmail({}, { message: 'Неверный формат email' })
   email: string;
 
-  @MinLength(8)
+  @MinLength(8, { message: 'Пароль должен содержать не менее 8 символов' })
   password: string;
 }
 
 export class UpdateDto {
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Имя не должно быть пустым' })
   name: string;
 
   image: string;
 
-  @MinLength(5)
+  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
   password: string;
 }
 
-// DTO for login
 export class LoginDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Неверный формат email' })
   email: string;
 
-  @MinLength(5)
+  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
   password: string;
 
   code?: string;
@@ -40,19 +40,22 @@ export class LoginDto {
 }
 
 export class ForgetDtoStep1 {
-  @IsEmail()
+  @IsEmail({}, { message: 'Неверный формат email' })
   email: string;
 }
 
 export class ForgetDtoStep2 {
+  @IsNotEmpty({ message: 'Код не должен быть пустым' })
   code: string;
 
+  @IsEmail({}, { message: 'Неверный формат email' })
   email: string;
 }
 
 export class ForgetDtoStep3 {
-  @MinLength(5)
+  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
   password: string;
 
+  @IsEmail({}, { message: 'Неверный формат email' })
   email: string;
 }

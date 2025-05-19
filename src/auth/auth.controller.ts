@@ -45,7 +45,9 @@ export class AuthController {
       const sanitizedName = this.sanitizeService.sanitizeHtml(name);
       const findUser = await this.authService.getUserByEmail(email);
       if (findUser) {
-        return res.status(400).send({ message: 'User arleady exist.' });
+        return res
+          .status(400)
+          .send({ message: 'Пользователь с таким почтой уже существует' });
       }
       const user = await this.authService.register(
         sanitizedName,
@@ -172,8 +174,8 @@ export class AuthController {
   @Post('/forget-email')
   async forgetStep1(@Body() forgetDto: ForgetDtoStep1, @Res() res: Response) {
     try {
-      await this.authService.forgetStep1(forgetDto.email);
-      return res.status(200).send(true);
+      const data = await this.authService.forgetStep1(forgetDto.email);
+      return res.status(200).send(data);
     } catch (error) {
       return res.status(400).send(error);
     }

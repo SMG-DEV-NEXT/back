@@ -46,11 +46,11 @@ export class AuthService {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('Пользователь не найден');
     }
     const passwordIsValid = await bcrypt.compare(password, user.password);
     if (!passwordIsValid) {
-      throw new UnauthorizedException('Invalid password');
+      throw new UnauthorizedException('Пользователь не найден');
     }
     if (user.isTwoFactorEnabled && !code) {
       return { secret: user.twoFactorSecret };
@@ -77,7 +77,7 @@ export class AuthService {
       },
     });
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException('Пользователь с таким почтой не найден');
     }
     const { password, ...data } = user;
     const tokens = this.generateTokens(id);
@@ -183,10 +183,10 @@ export class AuthService {
   async forgetStep1(email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('User not found.');
+      throw new UnauthorizedException('Пользователь с таким почтой не найден');
     }
     if (user.isTwoFactorEnabled) {
-      return { message: 'Code sended.' };
+      return { message: 'Code sended.', isTwoFactor: true };
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.prisma.user.update({
@@ -200,17 +200,17 @@ export class AuthService {
       generateForgetPasswordMail(code),
     );
 
-    return { message: 'Code sended.' };
+    return { message: 'Code sended.', isTwoFactor: false };
   }
   async forgetStep2(code: string, email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('User not found.');
+      throw new UnauthorizedException('Пользователь с таким почтой не найден');
     }
     if (user.isTwoFactorEnabled) {
       const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
       if (!isTrueCode) {
-        throw new UnauthorizedException('Invalid 2FA code');
+        throw new UnauthorizedException('Неверный код');
       }
       return isTrueCode;
     }
@@ -227,7 +227,7 @@ export class AuthService {
   async forgetStep3(password: string, email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('User not found.');
+      throw new UnauthorizedException('Пользователь с таким почтой не найден');
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 
