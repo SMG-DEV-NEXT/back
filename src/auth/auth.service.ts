@@ -46,11 +46,11 @@ export class AuthService {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException('user_not_found');
     }
     const passwordIsValid = await bcrypt.compare(password, user.password);
     if (!passwordIsValid) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException('user_not_found');
     }
     if (user.isTwoFactorEnabled && !code) {
       return { secret: user.twoFactorSecret };
@@ -58,7 +58,7 @@ export class AuthService {
     if (code) {
       const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
       if (!isTrueCode) {
-        throw new UnauthorizedException('Invalid 2FA code');
+        throw new UnauthorizedException('invalid_code');
       }
     }
     const tokens = this.generateTokens(user.id);
@@ -77,7 +77,7 @@ export class AuthService {
       },
     });
     if (!user) {
-      throw new BadRequestException('Пользователь с таким почтой не найден');
+      throw new BadRequestException('email_not_found');
     }
     const { password, ...data } = user;
     const tokens = this.generateTokens(id);
@@ -160,7 +160,7 @@ export class AuthService {
         select: { twoFactorSecret: true, isTwoFactorEnabled: true },
       });
       if (!user || !user.isTwoFactorEnabled || !user.twoFactorSecret) {
-        throw new Error('2FA is not enabled');
+        throw new Error('2fa_not_enabled');
       }
       const otpAuthUrl = `otpauth://totp/SMG?secret=${user.twoFactorSecret}&issuer=SMG`;
       const qrCodeDataURL = await QRCode.toDataURL(otpAuthUrl);
@@ -183,7 +183,7 @@ export class AuthService {
   async forgetStep1(email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Пользователь с таким почтой не найден');
+      throw new UnauthorizedException('email_not_found');
     }
     if (user.isTwoFactorEnabled) {
       return { message: 'Code sended.', isTwoFactor: true };
@@ -205,7 +205,7 @@ export class AuthService {
   async forgetStep2(code: string, email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Пользователь с таким почтой не найден');
+      throw new UnauthorizedException('email_not_found');
     }
     if (user.isTwoFactorEnabled) {
       const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
@@ -227,7 +227,7 @@ export class AuthService {
   async forgetStep3(password: string, email: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Пользователь с таким почтой не найден');
+      throw new UnauthorizedException('email_not_found');
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 

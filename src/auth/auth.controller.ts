@@ -45,9 +45,7 @@ export class AuthController {
       const sanitizedName = this.sanitizeService.sanitizeHtml(name);
       const findUser = await this.authService.getUserByEmail(email);
       if (findUser) {
-        return res
-          .status(400)
-          .send({ message: 'Пользователь с таким почтой уже существует' });
+        return res.status(400).send({ message: 'email_exists' });
       }
       const user = await this.authService.register(
         sanitizedName,

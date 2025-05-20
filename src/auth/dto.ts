@@ -1,37 +1,31 @@
-import {
-  isEmail,
-  IsEmail,
-  IsNotEmpty,
-  minLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
 
 export class RegisterDto {
-  @IsNotEmpty({ message: 'Имя не должно быть пустым' })
+  @IsNotEmpty({ message: 'name_required' })
   name: string;
 
-  @IsEmail({}, { message: 'Неверный формат email' })
+  @IsEmail({}, { message: 'email_invalid' })
   email: string;
 
-  @MinLength(8, { message: 'Пароль должен содержать не менее 8 символов' })
+  @MinLength(8, { message: 'password_min_8' })
   password: string;
 }
 
 export class UpdateDto {
-  @IsNotEmpty({ message: 'Имя не должно быть пустым' })
+  @IsNotEmpty({ message: 'name_required' })
   name: string;
 
   image: string;
 
-  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
+  @MinLength(5, { message: 'password_min_5' })
   password: string;
 }
 
 export class LoginDto {
-  @IsEmail({}, { message: 'Неверный формат email' })
+  @IsEmail({}, { message: 'email_invalid' })
   email: string;
 
-  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
+  @MinLength(5, { message: 'password_min_5' })
   password: string;
 
   code?: string;
@@ -40,22 +34,22 @@ export class LoginDto {
 }
 
 export class ForgetDtoStep1 {
-  @IsEmail({}, { message: 'Неверный формат email' })
+  @IsEmail({}, { message: 'email_invalid' })
   email: string;
 }
 
 export class ForgetDtoStep2 {
-  @IsNotEmpty({ message: 'Код не должен быть пустым' })
+  @IsNotEmpty({ message: 'code_required' })
   code: string;
 
-  @IsEmail({}, { message: 'Неверный формат email' })
+  @IsEmail({}, { message: 'email_invalid' })
   email: string;
 }
 
 export class ForgetDtoStep3 {
-  @MinLength(5, { message: 'Пароль должен содержать не менее 5 символов' })
+  @MinLength(5, { message: 'password_min_5' })
   password: string;
 
-  @IsEmail({}, { message: 'Неверный формат email' })
+  @IsEmail({}, { message: 'email_invalid' })
   email: string;
 }
