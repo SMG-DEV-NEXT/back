@@ -51,7 +51,25 @@ export class CheatService {
 
   // Get all cheats
   async getAll() {
-    return this.prisma.cheat.findMany();
+    return this.prisma.cheat.findMany({
+      orderBy: {
+        position: 'desc',
+      },
+    });
+  }
+
+  async searchCheat(search: string) {
+    return this.prisma.cheat.findMany({
+      where: {
+        status: 'published',
+        OR: [
+          { titleEn: { contains: search, mode: 'insensitive' } },
+          { titleRu: { contains: search, mode: 'insensitive' } },
+          { aboutEn: { contains: search, mode: 'insensitive' } },
+          { aboutRu: { contains: search, mode: 'insensitive' } },
+        ],
+      },
+    });
   }
 
   async getAllWithPlans(id: string) {
@@ -181,6 +199,7 @@ export class CheatService {
     const [data, catalog] = await Promise.all([
       this.prisma.cheat.findMany({
         where: {
+          status: 'published',
           catalogId: dto.catalogId,
           OR: [
             { titleEn: { contains: search, mode: 'insensitive' } },
@@ -268,6 +287,9 @@ export class CheatService {
   async getTopCheats() {
     return this.prisma.cheat.findMany({
       take: 6,
+      where: {
+        status: 'published',
+      },
       orderBy: {
         position: 'desc',
       },

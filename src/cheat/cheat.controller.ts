@@ -36,6 +36,15 @@ export class CheatController {
     }
   }
 
+  @Get('head/:search')
+  async searchCheat(@Param() params: { search: string }) {
+    try {
+      return this.cheatService.searchCheat(params.search);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAll() {
