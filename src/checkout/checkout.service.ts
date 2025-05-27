@@ -32,14 +32,19 @@ export class CheckoutService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.post('https://enter.tochka.com/oauth/token', data, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        }),
+        this.httpService.post(
+          'https://enter.tochka.com/oauth/token',
+          data.toString(),
+          {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          },
+        ),
       );
 
       return response.data.access_token;
     } catch (error) {
       console.log(error);
+      throw new BadGatewayException(error);
     }
   }
 
