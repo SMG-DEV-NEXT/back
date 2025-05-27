@@ -161,83 +161,88 @@ export class CheckoutService {
   }
 
   async initiatePayment(data: CheckoutDto, ip: string): Promise<string> {
-    const user = await this.prisma.user.findFirst({
-      where: { email: data.email },
-    });
-    const isReseller = await this.prisma.reseller.findFirst({
-      where: { email: data.email },
-    });
-    const planType = data.type as 'day' | 'week' | 'month';
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: { email: data.email },
+      });
+      const isReseller = await this.prisma.reseller.findFirst({
+        where: { email: data.email },
+      });
+      const planType = data.type as 'day' | 'week' | 'month';
 
-    const cheat = await this.prisma.cheat.findFirst({
-      where: { id: data.itemId },
-      include: { plan: { include: { day: true, month: true, week: true } } },
-    });
-    const promoCode = data.promo
-      ? await this.prisma.promocode.findFirst({ where: { code: data.promo } })
-      : null;
+      const cheat = await this.prisma.cheat.findFirst({
+        where: { id: data.itemId },
+        include: { plan: { include: { day: true, month: true, week: true } } },
+      });
+      const promoCode = data.promo
+        ? await this.prisma.promocode.findFirst({ where: { code: data.promo } })
+        : null;
 
-    if (!cheat || !cheat.plan[data.type])
-      throw new NotFoundException('Product not found');
+      if (!cheat || !cheat.plan[data.type])
+        throw new NotFoundException('Product not found');
 
-    const keyses = cheat.plan[planType].keys;
-    if (keyses.length < data.count)
-      throw new BadRequestException('Недостаточно ключей');
-    let price = cheat.plan[data.type]?.price;
+      const keyses = cheat.plan[planType].keys;
+      if (keyses.length < data.count)
+        throw new BadRequestException('Недостаточно ключей');
+      let price = cheat.plan[data.type]?.price;
 
-    if (promoCode && promoCode.count < promoCode.maxActivate) {
-      price -= (price / 100) * promoCode.percent;
+      if (promoCode && promoCode.count < promoCode.maxActivate) {
+        price -= (price / 100) * promoCode.percent;
+      }
+
+      if (isReseller) {
+        price -= (price / 100) * isReseller.prcent;
+      }
+
+      if (cheat.plan[data.type].prcent > 0) {
+        price -=
+          (cheat.plan[data.type].price / 100) * cheat.plan[data.type].prcent;
+      }
+
+      const finalPrice = Math.round(price * data.count); // рубли * кол-во
+
+      // 1. Создаём транзакцию с пометкой "pending"
+      // @ts-nocheck
+      const transaction = await this.prisma.transaction.create({
+        data: {
+          email: data.email,
+          userId: user?.id || null,
+          cheatId: data.itemId,
+          type: data.type,
+          codes: [],
+          price: cheat.plan[data.type].price * data.count,
+          checkoutedPrice: finalPrice,
+          promoCode: promoCode?.code,
+          count: data.count,
+          ip,
+          // @ts-ignore
+          status: 'pending',
+        },
+      });
+
+      // 2. Генерация ссылки через API Точки
+      const token = await this.getAccessToken();
+
+      const response = await this.httpService.axiosRef.post(
+        'https://enter.tochka.com/api/v2/payments', // проверь реальный путь
+        {
+          amount: finalPrice * 100, // рубли в копейки
+          currency: 'RUB',
+          description: `Покупка чита: ${cheat.titleEn}`,
+          external_id: transaction.id, // id для связи
+          success_url: `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`,
+          fail_url: `${process.env.FRONT_URL}/${data.locale}/fail/${transaction.id}`,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      return response.data.payment_url;
+    } catch (error) {
+      console.log(error);
+      throw new BadGatewayException(error);
     }
-
-    if (isReseller) {
-      price -= (price / 100) * isReseller.prcent;
-    }
-
-    if (cheat.plan[data.type].prcent > 0) {
-      price -=
-        (cheat.plan[data.type].price / 100) * cheat.plan[data.type].prcent;
-    }
-
-    const finalPrice = Math.round(price * data.count); // рубли * кол-во
-
-    // 1. Создаём транзакцию с пометкой "pending"
-    // @ts-nocheck
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        email: data.email,
-        userId: user?.id || null,
-        cheatId: data.itemId,
-        type: data.type,
-        codes: [],
-        price: cheat.plan[data.type].price * data.count,
-        checkoutedPrice: finalPrice,
-        promoCode: promoCode?.code,
-        count: data.count,
-        ip,
-        // @ts-ignore
-        status: 'pending',
-      },
-    });
-
-    // 2. Генерация ссылки через API Точки
-    const token = await this.getAccessToken();
-
-    const response = await this.httpService.axiosRef.post(
-      'https://enter.tochka.com/api/v2/payments', // проверь реальный путь
-      {
-        amount: finalPrice * 100, // рубли в копейки
-        currency: 'RUB',
-        description: `Покупка чита: ${cheat.titleEn}`,
-        external_id: transaction.id, // id для связи
-        success_url: `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`,
-        fail_url: `${process.env.FRONT_URL}/${data.locale}/fail/${transaction.id}`,
-      },
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-
-    return response.data.payment_url;
   }
 
   async handleCallback(data: any) {
