@@ -24,19 +24,22 @@ export class CheckoutService {
 
   // TOCHKA
   private async getAccessToken(): Promise<string> {
-    const data = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: process.env.TOCHKA_CLIENT_ID,
-      client_secret: process.env.TOCHKA_CLIENT_SECRET,
-    });
-
     try {
+      const data = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: process.env.TOCHKA_CLIENT_ID,
+        client_secret: process.env.TOCHKA_CLIENT_SECRET,
+        scope: 'payments', // 👈 не забудь про scope!
+      });
+
       const response = await firstValueFrom(
         this.httpService.post(
-          'https://enter.tochka.com/oauth/token',
-          data.toString(),
+          'https://enter.tochka.com/connect/token',
+          data.toString(), // обязательно .toString()!
           {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
           },
         ),
       );
