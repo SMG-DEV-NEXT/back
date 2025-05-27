@@ -189,6 +189,7 @@ model Transaction {
   codes      String[]
   isVisited  Boolean @default(false)
   ip         String?
+  status     String 
 }
 
 model FaqBlock {

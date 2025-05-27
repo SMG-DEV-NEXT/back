@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
@@ -9,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CheckoutService } from './checkout.service';
-import { CheckoutDto } from './dto';
+import { CheckoutDto, CreatePaymentDto } from './dto';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
@@ -18,17 +20,13 @@ import * as crypto from 'crypto';
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
-  private merchantId = '61';
-  // private merchantId = process.env.FREEKASSA_MERCHANT_ID;
-  private secret1 = process.env.FREEKASSA_SECRET_1;
-  private secret2 = process.env.FREEKASSA_SECRET_2;
   @Post()
   async checkout(@Body() data: CheckoutDto, @Req() req: Request) {
     try {
       const ip =
         req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
         req.socket.remoteAddress;
-      return this.checkoutService.checkoutFunction(data, ip);
+      return this.checkoutService.initiatePayment(data, ip);
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -53,6 +51,13 @@ export class CheckoutController {
     } catch (error) {
       await sendErrorNotification(error);
     }
+  }
+
+  @Post('/callback')
+  @HttpCode(200)
+  async paymentCallback(@Body() body: any) {
+    await this.checkoutService.handleCallback(body);
+    return { success: true };
   }
 
   @Get('/:id')
@@ -84,6 +89,4 @@ export class CheckoutController {
       await sendErrorNotification(error);
     }
   }
-
-  // checkout
 }
