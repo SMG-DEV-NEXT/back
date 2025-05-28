@@ -13,6 +13,8 @@ import { Transaction } from '@prisma/client';
 import { generatorAfterCheckoutMail } from 'src/mail/generator';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
+import * as moment from 'moment-timezone';
+import axios from 'axios';
 
 @Injectable()
 export class CheckoutService {
@@ -21,6 +23,8 @@ export class CheckoutService {
     private smtpService: SmtpService,
     private readonly httpService: HttpService,
   ) {}
+  private readonly PAYMENT_URL =
+    'https://enter.tochka.com/uapi/payment/v1.0/order';
 
   // TOCHKA
   private async getAccessToken(): Promise<string> {
@@ -222,23 +226,32 @@ export class CheckoutService {
 
       // 2. Генерация ссылки через API Точки
       const token = await this.getAccessToken();
+      console.log(finalPrice * 100);
+      const paymentPayload = {
+        Data: {
+          accountCode: '614502280376', // ваш счёт в Точке
+          bankCode: '044525104', // БИК Точки
 
-      const response = await this.httpService.axiosRef.post(
-        'https://enter.tochka.com/api/v2/payments', // проверь реальный путь
-        {
-          amount: finalPrice * 100, // рубли в копейки
-          currency: 'RUB',
-          description: `Покупка чита: ${cheat.titleEn}`,
-          external_id: transaction.id, // id для связи
-          success_url: `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`,
-          fail_url: `${process.env.FRONT_URL}/${data.locale}/fail/${transaction.id}`,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+          counterpartyBankBic: '044525104',
+          counterpartyAccountNumber: '614502280376',
+          counterpartyName: 'ООО SMG',
+          // counterpartyBankCorrAccount: '30101810745374525104',
 
-      return response.data.payment_url;
+          paymentAmount: finalPrice * 100,
+          paymentDate: moment().tz('Europe/Moscow').format('YYYY-MM-DD'),
+          paymentNumber: transaction.id,
+          paymentPriority: '5',
+          paymentPurpose: `Покупка чита: ${cheat[`title${data.locale === 'ru' ? 'Ru' : 'En'}`]}`,
+        },
+      };
+      const response = await axios.post(this.PAYMENT_URL, paymentPayload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.data.Data.redirectURL;
     } catch (error) {
       console.log(error);
       throw new BadGatewayException(error);

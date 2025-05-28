@@ -189,7 +189,7 @@ model Transaction {
   codes      String[]
   isVisited  Boolean @default(false)
   ip         String?
-  status     String 
+  status     String @default("active")
 }
 
 model FaqBlock {
