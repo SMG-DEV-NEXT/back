@@ -17,6 +17,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { FaqModule } from './faq/faq.module';
 import { StatisticModule } from './statistic/statistic.module';
 import { StaticController } from './static.controller';
+import { UploadModule } from './upload/upload.module';
 @Module({
   imports: [
     AuthModule,
@@ -33,6 +34,7 @@ import { StaticController } from './static.controller';
     CheckoutModule,
     FaqModule,
     StatisticModule,
+    UploadModule,
   ],
   controllers: [StaticController],
   providers: [PrismaService, MailService],

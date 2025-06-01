@@ -29,6 +29,10 @@ export class CheckoutService {
   // TOCHKA
   private async getAccessToken(): Promise<string> {
     try {
+      console.log(
+        process.env.TOCHKA_CLIENT_ID,
+        process.env.TOCHKA_CLIENT_SECRET,
+      );
       const data = new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: process.env.TOCHKA_CLIENT_ID,
@@ -226,7 +230,7 @@ export class CheckoutService {
 
       // 2. Генерация ссылки через API Точки
       const token = await this.getAccessToken();
-      console.log(finalPrice * 100);
+      console.log(finalPrice * 100, token);
       const paymentPayload = {
         Data: {
           accountCode: '614502280376', // ваш счёт в Точке
@@ -246,10 +250,12 @@ export class CheckoutService {
       };
       const response = await axios.post(this.PAYMENT_URL, paymentPayload, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}`.trim(),
           'Content-Type': 'application/json',
         },
       });
+
+      console.log(response.status);
 
       return response.data.Data.redirectURL;
     } catch (error) {

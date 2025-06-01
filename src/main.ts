@@ -8,6 +8,9 @@ import rateLimit from 'express-rate-limit';
 import * as cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+import { json, Request, Response, urlencoded } from 'express';
+import { existsSync } from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -15,6 +18,16 @@ async function bootstrap() {
   });
   app.set('trust proxy', 1);
   app.use(cookieParser());
+
+  // for uploading
+  app.use(urlencoded({ limit: '1000mb', extended: true }));
+  app.use(json({ limit: '1000mb' }));
+  const uploadPath = process.env.UPLOAD_PATH || 'uploads';
+  app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
+    prefix: '/uploads/',
+  });
+
+  // for rache limit
   if (process.env.NODE_ENV !== 'development') {
     app.use(
       rateLimit({

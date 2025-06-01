@@ -92,7 +92,9 @@ export class AuthController {
           secure: true, // Use HTTPS
           sameSite: 'strict',
         });
-        return res.status(200).json({ user: userWithoutPassword });
+        return res
+          .status(200)
+          .json({ user: userWithoutPassword, token: access_token });
       }
       this.authService.addRefreshTokenToCookies(res, refresh_token);
       return res
