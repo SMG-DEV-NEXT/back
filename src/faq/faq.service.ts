@@ -9,9 +9,17 @@ export class FaqService {
 
   async initBlocks() {
     const blocks = [
-      { titleru: 'General Questions', titleen: 'General Questions', order: 0 },
-      { titleru: 'General Questions', titleen: 'General Questions', order: 1 },
-      { titleru: 'General Questions', titleen: 'General Questions', order: 2 },
+      { titleru: 'Приветствие', titleen: 'Greeting', order: 0 },
+      {
+        titleru: 'Полезная информация',
+        titleen: 'Useful Information',
+        order: 1,
+      },
+      {
+        titleru: 'Проблемы и решения',
+        titleen: 'Problems and Solutions',
+        order: 2,
+      },
     ];
 
     for (const block of blocks) {

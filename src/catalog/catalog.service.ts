@@ -33,6 +33,18 @@ export class CatalogService {
     });
   }
 
+  async getAllPublishedCatalogs() {
+    return this.prisma.catalog.findMany({
+      include: { cheats: true },
+      where: {
+        type: 'published',
+      },
+      orderBy: {
+        position: 'desc',
+      },
+    });
+  }
+
   async getCatalog(id: string) {
     const catalog = this.prisma.catalog.findFirst({
       include: { cheats: true },
@@ -55,6 +67,18 @@ export class CatalogService {
     }
 
     // Delete related cheats first
+    await this.prisma.comment.deleteMany({
+      where: {
+        cheat: {
+          catalogId: id,
+        },
+      },
+    });
+    await this.prisma.stats.deleteMany({
+      where: {
+        catalogId: id,
+      },
+    });
     await this.prisma.cheat.deleteMany({ where: { catalogId: id } });
 
     // Delete the catalog
@@ -99,6 +123,9 @@ export class CatalogService {
         },
         include: {
           cheats: {
+            where: {
+              status: 'published',
+            },
             include: {
               plan: {
                 include: {
@@ -145,8 +172,15 @@ export class CatalogService {
       orderBy: {
         position: 'desc',
       },
+      where: {
+        type: 'published',
+      },
+
       include: {
         cheats: {
+          where: {
+            status: 'published',
+          },
           select: {
             _count: true,
             minimumPrice: true,

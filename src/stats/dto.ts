@@ -95,6 +95,9 @@ export class UpdateStatsDto {
   @IsOptional()
   @IsIn(['published', 'unpublish'])
   type?: string;
+
+  @Matches(/^[0-9a-fA-F]{24}$/, { message: 'Invalid catalogId format' })
+  catalogId: string;
 }
 
 export class GetAllStatsDto {

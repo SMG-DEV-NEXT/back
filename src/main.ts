@@ -16,7 +16,9 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+
   app.set('trust proxy', 1);
+  app.setGlobalPrefix('api');
   app.use(cookieParser());
 
   // for uploading
@@ -25,8 +27,14 @@ async function bootstrap() {
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
     prefix: '/uploads/',
+    setHeaders: (res, path) => {
+      res.setHeader(
+        'Access-Control-Allow-Origin',
+        process.env.FRONT_URL || 'http://localhost:3000',
+      );
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    },
   });
-
   // for rache limit
   if (process.env.NODE_ENV !== 'development') {
     app.use(

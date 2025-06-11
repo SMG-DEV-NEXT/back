@@ -61,6 +61,15 @@ export class CatalogController {
     }
   }
 
+  @Get('/published')
+  async getAllPublished() {
+    try {
+      return this.catalogService.getAllPublishedCatalogs();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Get('/all')
   async getCatalogs(
     @Query('search') search?: string,

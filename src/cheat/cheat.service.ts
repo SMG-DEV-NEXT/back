@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PlanService } from 'src/plan/plan.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCheatDto, GetCheatsDto } from './dto';
@@ -22,6 +22,7 @@ export class CheatService {
     let cheatId = null;
     try {
       const { catalogId, ...data } = createCheatDto;
+      await this.shiftPositions(createCheatDto.position);
       const cheat = await this.prisma.cheat.create({
         data: {
           ...data,
@@ -36,7 +37,6 @@ export class CheatService {
         cheatId: cheat.id,
       });
       isCreatedCheatWithPlanIdNull = false;
-      await this.shiftPositions(createCheatDto.position);
       return { cheat, plan };
     } catch (error) {
       console.log(error);
@@ -138,11 +138,44 @@ export class CheatService {
     const existingCheat = await this.prisma.cheat.findUnique({
       where: { id },
     });
+    if (!existingCheat) {
+      throw new NotFoundException('Cheat not found');
+    }
     if (
-      updateCheatDto.position !== existingCheat.position &&
-      isNumber(updateCheatDto.position)
+      updateCheatDto.position &&
+      updateCheatDto.position !== existingCheat.position
     ) {
-      await this.shiftPositions(existingCheat.position);
+      if (updateCheatDto.position > existingCheat.position) {
+        // Moving DOWN → shift those between old+1 and new down by 1
+        await this.prisma.cheat.updateMany({
+          where: {
+            position: {
+              gt: existingCheat.position,
+              lte: updateCheatDto.position,
+            },
+          },
+          data: {
+            position: {
+              decrement: 1,
+            },
+          },
+        });
+      } else {
+        // Moving UP → shift those between new and old-1 up by 1
+        await this.prisma.cheat.updateMany({
+          where: {
+            position: {
+              gte: updateCheatDto.position,
+              lt: existingCheat.position,
+            },
+          },
+          data: {
+            position: {
+              increment: 1,
+            },
+          },
+        });
+      }
     }
     return this.prisma.cheat.update({
       where: { id },
@@ -193,7 +226,9 @@ export class CheatService {
   }
 
   async apiCheats(dto: GetCheatsDto) {
-    const { search, page, limit, type, price_end, price_start } = dto;
+    const { search, page: p, limit: l, type, price_end, price_start } = dto;
+    const page = p * 1;
+    const limit = l * 1;
     const skip = (page - 1) * limit;
 
     const [data, catalog] = await Promise.all([
@@ -225,7 +260,7 @@ export class CheatService {
       }),
       this.prisma.catalog.findFirst({ where: { id: dto.catalogId } }),
     ]);
-    let cheats = data;
+    let cheats = [...data];
 
     // sorting
 
@@ -271,7 +306,6 @@ export class CheatService {
     prices.push(SortingDataForLimits.at(-1)?.plan?.day?.price || 0);
     prices.sort((a, b) => a - b);
     const allCheats = cheats.slice(skip, skip + limit); // for pagination
-
     return {
       total: Math.ceil(cheats.length / limit),
       page,

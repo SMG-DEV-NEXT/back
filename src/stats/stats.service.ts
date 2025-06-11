@@ -17,6 +17,12 @@ export class StatsService {
       orderBy: {
         view: 'desc', // Sort by views in descending order
       },
+      where: {
+        type: 'published',
+        catalog: {
+          type: 'published',
+        },
+      },
       take: 4,
     });
     const catalogs = await this.prisma.catalog.findMany({
@@ -137,16 +143,25 @@ export class StatsService {
 
   // 5. Update a stat for a game
   async updateStat(statId: string, updateData: UpdateStatsDto) {
+    const { catalogId, ...data } = updateData;
     return this.prisma.stats.update({
       where: { id: statId },
-      data: updateData,
+      data: {
+        ...data,
+        catalog: { connect: { id: catalogId } },
+      },
     });
   }
 
   async getAllStatsClient(id: string, query: GetAllStatsOfCatalog) {
     const { search, page = '1', limit = '30' } = query;
 
-    const filters: any = {};
+    const filters: any = {
+      type: 'published',
+      catalog: {
+        type: 'published',
+      },
+    };
 
     filters.catalogId = id;
 
@@ -181,6 +196,12 @@ export class StatsService {
     return this.prisma.stats.findMany({
       orderBy: {
         view: 'desc',
+      },
+      where: {
+        type: 'published',
+        catalog: {
+          type: 'published',
+        },
       },
       take: 4,
     });

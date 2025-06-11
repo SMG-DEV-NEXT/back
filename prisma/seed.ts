@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
+import * as bcrypt from 'bcryptjs';
+import { guaranteSettings } from './guarante';
 
 async function main() {
   const blocks = [
@@ -20,6 +22,26 @@ async function main() {
       await prisma.faqBlock.create({ data: block });
     }
   }
+  const hashedPassword = await bcrypt.hash('office123', 10);
+
+  await prisma.user.create({
+    data: {
+      name: 'Admin',
+      email: 'admin@smg.com',
+      password: hashedPassword,
+      isAdmin: true,
+      raiting: '0',
+      isTwoFactorEnabled: false,
+      resetCode: '',
+    },
+  });
+
+  await prisma.setting.create({
+    data: {
+      title: 'guarante',
+      settings: guaranteSettings,
+    },
+  });
 }
 
 main()

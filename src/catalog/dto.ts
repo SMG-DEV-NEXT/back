@@ -26,6 +26,10 @@ export class CreateDto {
   position: number;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({
+    require_protocol: true,
+    protocols: ['http', 'https'],
+    host_whitelist: ['localhost', /^\w+(\.\w+)*$/],
+  })
   imageUrl?: string;
 }
