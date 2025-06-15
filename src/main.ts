@@ -26,7 +26,7 @@ async function bootstrap() {
   app.use(json({ limit: '1000mb' }));
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
-    prefix: '/uploads/',
+    prefix: '/api/uploads/',
     setHeaders: (res, path) => {
       res.setHeader(
         'Access-Control-Allow-Origin',
