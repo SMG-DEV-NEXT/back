@@ -22,8 +22,8 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // for uploading
-  app.use(urlencoded({ limit: '1000mb', extended: true }));
-  app.use(json({ limit: '1000mb' }));
+  app.use(urlencoded({ limit: '1024mb', extended: true }));
+  app.use(json({ limit: '1024mb' }));
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
     prefix: '/api/uploads/',
