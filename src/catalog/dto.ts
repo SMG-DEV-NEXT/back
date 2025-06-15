@@ -29,7 +29,7 @@ export class CreateDto {
   @IsUrl({
     require_protocol: true,
     protocols: ['http', 'https'],
-    host_whitelist: ['localhost', /^\w+(\.\w+)*$/],
+    host_whitelist: ['localhost', /^[\w.-]+$/],
   })
   imageUrl?: string;
 }
