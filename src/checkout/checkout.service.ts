@@ -248,16 +248,20 @@ export class CheckoutService {
           paymentPurpose: `Покупка чита: ${cheat[`title${data.locale === 'ru' ? 'Ru' : 'En'}`]}`,
         },
       };
-      const response = await axios.post(this.PAYMENT_URL, paymentPayload, {
-        headers: {
-          Authorization: `Bearer ${token}`.trim(),
-          'Content-Type': 'application/json',
-        },
+      // const response = await axios.post(this.PAYMENT_URL, paymentPayload, {
+      //   headers: {
+      //     Authorization: `Bearer ${token}`.trim(),
+      //     'Content-Type': 'application/json',
+      //   },
+      // });
+
+      await this.handleCallback({
+        status: 'succeeded',
+        external_id: transaction.id,
       });
 
-      console.log(response.status);
-
-      return response.data.Data.redirectURL;
+      return `${process.env.FRONT_URL}/ru/preview/${transaction.id}`;
+      // return response.data.Data.redirectURL;
     } catch (error) {
       console.log(error);
       throw new BadGatewayException(error);
@@ -265,54 +269,58 @@ export class CheckoutService {
   }
 
   async handleCallback(data: any) {
-    const txId = data.external_id;
-    const status = data.status; // должно быть 'succeeded'
+    try {
+      const txId = data.external_id;
+      const status = data.status; // должно быть 'succeeded'
 
-    if (status !== 'succeeded') return;
+      if (status !== 'succeeded') return;
 
-    const transaction = await this.prisma.transaction.findUnique({
-      where: { id: txId },
-    });
-    //@ts-ignore
-    if (!transaction || transaction.status === 'success') return;
+      const transaction = await this.prisma.transaction.findUnique({
+        where: { id: txId },
+      });
+      //@ts-ignore
+      if (!transaction || transaction.status === 'success') return;
 
-    const cheat = await this.prisma.cheat.findFirst({
-      where: { id: transaction.cheatId },
-      include: { plan: { include: { [transaction.type]: true } } },
-    });
+      const cheat = await this.prisma.cheat.findFirst({
+        where: { id: transaction.cheatId },
+        include: { plan: { include: { [transaction.type]: true } } },
+      });
 
-    const plan = cheat.plan[transaction.type];
-    //@ts-ignore
-    const keyses = plan.keys;
+      const plan = cheat.plan[transaction.type];
+      //@ts-ignore
+      const keyses = plan.keys;
 
-    if (keyses.length < transaction.count) {
+      if (keyses.length < transaction.count) {
+        await this.prisma.transaction.update({
+          where: { id: txId },
+          //@ts-ignore
+          data: { status: 'error' },
+        });
+        return;
+      }
+
+      const checkoutKeyses = keyses.slice(0, transaction.count);
+
       await this.prisma.transaction.update({
         where: { id: txId },
-        //@ts-ignore
-        data: { status: 'error' },
+        data: {
+          //@ts-ignore
+          status: 'success',
+          codes: checkoutKeyses,
+        },
       });
-      return;
-    }
-
-    const checkoutKeyses = keyses.slice(0, transaction.count);
-
-    await this.prisma.transaction.update({
-      where: { id: txId },
-      data: {
+      await this.prisma.period.update({
         //@ts-ignore
-        status: 'success',
-        codes: checkoutKeyses,
-      },
-    });
-    await this.prisma.period.update({
-      //@ts-ignore
-      where: { id: plan.id },
-      data: {
-        keys: keyses.slice(transaction.count),
-      },
-    });
+        where: { id: plan.id },
+        data: {
+          keys: keyses.slice(transaction.count),
+        },
+      });
 
-    await this.sendMail(transaction);
+      await this.sendMail(transaction);
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   async getTransactionPreview(transactionId: string) {
