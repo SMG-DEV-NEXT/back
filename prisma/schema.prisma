@@ -104,7 +104,7 @@ model Cheat {
   instructionRu  String
   instructionEn  String
   requirments    Json // Array of objects {name: value}
-  planId         String?   @db.ObjectId
+  planId         String?  @unique(map: "unique_not_null")  @db.ObjectId
   plan           Plan?    @relation(fields: [planId], references: [id])
   catalogId      String   @db.ObjectId
   catalog        Catalog  @relation(fields: [catalogId], references: [id])
