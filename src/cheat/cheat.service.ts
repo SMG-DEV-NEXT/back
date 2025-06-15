@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PlanService } from 'src/plan/plan.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCheatDto, GetCheatsDto } from './dto';
@@ -188,6 +192,17 @@ export class CheatService {
     const e = await this.prisma.plan.findMany({
       where: { cheatId: id },
     });
+    const existingTransactions = await this.prisma.transaction.findFirst({
+      where: {
+        cheatId: id,
+      },
+    });
+
+    if (existingTransactions) {
+      throw new BadRequestException(
+        'The Cheat cannot be deleted because it has transactions.',
+      );
+    }
     await this.prisma.plan.deleteMany({
       where: { cheatId: id },
     });
@@ -199,6 +214,19 @@ export class CheatService {
 
   // Delete multiple cheats by IDs
   async deleteMany(ids: string[]) {
+    const existingTransactions = await this.prisma.transaction.findFirst({
+      where: {
+        cheatId: {
+          in: ids,
+        },
+      },
+    });
+
+    if (existingTransactions) {
+      throw new BadRequestException(
+        'The Cheat cannot be deleted because it has transactions.',
+      );
+    }
     await this.prisma.cheat.deleteMany({
       where: {
         id: {

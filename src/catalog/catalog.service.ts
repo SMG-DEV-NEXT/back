@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateDto } from './dto';
@@ -65,6 +69,23 @@ export class CatalogService {
     if (!catalog) {
       throw new NotFoundException('Каталог не найден');
     }
+    const cheatsInCatalog = await this.prisma.cheat.findMany({
+      where: { catalogId: catalog.id },
+      select: { id: true },
+    });
+
+    const cheatIds = cheatsInCatalog.map((c) => c.id);
+
+    const existingTransactions = await this.prisma.transaction.findMany({
+      where: {
+        cheatId: { in: cheatIds },
+      },
+    });
+    if (existingTransactions.length) {
+      throw new BadRequestException(
+        'The Catalog cannot be deleted because it has cheats with transactions.',
+      );
+    }
 
     // Delete related cheats first
     await this.prisma.comment.deleteMany({
@@ -90,6 +111,27 @@ export class CatalogService {
   async deleteMultipleCatalogs(ids: string[]): Promise<{ message: string }> {
     if (!ids || ids.length === 0) {
       throw new NotFoundException('Список каталогов пуст');
+    }
+    const cheatsInCatalog = await this.prisma.cheat.findMany({
+      where: {
+        catalogId: {
+          in: ids,
+        },
+      },
+      select: { id: true },
+    });
+
+    const cheatIds = cheatsInCatalog.map((c) => c.id);
+
+    const existingTransactions = await this.prisma.transaction.findMany({
+      where: {
+        cheatId: { in: cheatIds },
+      },
+    });
+    if (existingTransactions.length) {
+      throw new BadRequestException(
+        'The Catalog cannot be deleted because it has cheats with transactions.',
+      );
     }
 
     // Delete all related cheats first
