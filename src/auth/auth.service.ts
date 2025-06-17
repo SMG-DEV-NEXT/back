@@ -238,22 +238,30 @@ export class AuthService {
     return true;
   }
 
-  async updateUser(name: string, password: string, image: string, id: any) {
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+  async updateUser(
+    name: string,
+    password: string | undefined,
+    image: string,
+    id: any,
+  ) {
+    const updateData: any = {
+      name,
+      logo: image,
+    };
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateData.password = hashedPassword;
+    }
     const update = await this.prisma.user.update({
       where: { id },
-      data: {
-        name,
-        password: hashedPassword,
-        logo: image,
-      },
+      data: updateData,
       include: {
         transactions: true,
         comments: true,
       },
     });
-    const { password: p, ...data } = update;
+
+    const { password: _, ...data } = update;
     return data;
   }
 }

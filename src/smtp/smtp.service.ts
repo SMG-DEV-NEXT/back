@@ -38,7 +38,6 @@ export class SmtpService {
   async createTransporter() {
     const config = await this.getConfig();
     const decryptedPass = this.cryptoService.decrypt(config.pass);
-    console.log(config, decryptedPass);
     return nodemailer.createTransport({
       host: config.host,
       port: config.port,

@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'name_required' })
@@ -17,8 +17,9 @@ export class UpdateDto {
 
   image: string;
 
+  @IsOptional()
   @MinLength(5, { message: 'password_min_5' })
-  password: string;
+  password?: string;
 }
 
 export class LoginDto {

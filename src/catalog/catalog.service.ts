@@ -151,7 +151,7 @@ export class CatalogService {
     };
   }
 
-  async getCatalogsWithCheats({ search, page, limit }) {
+  async getCatalogsWithCheats({ search, page, limit = 16 }) {
     const skip = (page - 1) * limit;
     const where = {
       title: { contains: search, mode: 'insensitive' },

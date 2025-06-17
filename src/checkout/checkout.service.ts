@@ -109,7 +109,6 @@ export class CheckoutService {
 
       // @ts-ignore
       let price = cheat.plan[data.type]?.price;
-
       if (data.promo) {
         if (promoCode && !(promoCode.count >= promoCode.maxActivate)) {
           price =
@@ -230,7 +229,6 @@ export class CheckoutService {
 
       // 2. Генерация ссылки через API Точки
       const token = await this.getAccessToken();
-      console.log(finalPrice * 100, token);
       const paymentPayload = {
         Data: {
           accountCode: '614502280376', // ваш счёт в Точке
@@ -279,6 +277,16 @@ export class CheckoutService {
         where: { id: txId },
       });
       //@ts-ignore
+      if (transaction.promoCode) {
+        await this.prisma.promocode.update({
+          where: { code: transaction.promoCode },
+          data: {
+            count: {
+              increment: 1,
+            },
+          },
+        });
+      }
       if (!transaction || transaction.status === 'success') return;
 
       const cheat = await this.prisma.cheat.findFirst({
