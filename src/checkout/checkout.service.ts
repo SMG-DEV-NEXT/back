@@ -192,6 +192,7 @@ export class CheckoutService {
       if (keyses.length < data.count)
         throw new BadRequestException('Недостаточно ключей');
       let price = cheat.plan[data.type]?.price;
+      const checkoutKeyses = keyses.slice(0, data.count);
 
       if (promoCode && promoCode.count < promoCode.maxActivate) {
         price -= (price / 100) * promoCode.percent;
@@ -216,7 +217,7 @@ export class CheckoutService {
           userId: user?.id || null,
           cheatId: data.itemId,
           type: data.type,
-          codes: keyses,
+          codes: checkoutKeyses,
           price: cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
           promoCode: promoCode?.code,
