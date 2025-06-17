@@ -216,7 +216,7 @@ export class CheckoutService {
           userId: user?.id || null,
           cheatId: data.itemId,
           type: data.type,
-          codes: [],
+          codes: keyses,
           price: cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
           promoCode: promoCode?.code,
