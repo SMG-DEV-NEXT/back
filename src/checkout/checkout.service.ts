@@ -9,7 +9,7 @@ import { CheckoutDto, CreatePaymentDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { count } from 'console';
 import { SmtpService } from 'src/smtp/smtp.service';
-import { Transaction } from '@prisma/client';
+import { Transaction, User } from '@prisma/client';
 import { generatorAfterCheckoutMail } from 'src/mail/generator';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
@@ -167,12 +167,16 @@ export class CheckoutService {
     }
   }
 
-  async initiatePayment(data: CheckoutDto, ip: string): Promise<string> {
+  async initiatePayment(
+    data: CheckoutDto,
+    ip: string,
+    user: User,
+  ): Promise<string> {
     try {
       const user = await this.prisma.user.findFirst({
         where: { email: data.email },
       });
-      const isReseller = await this.prisma.reseller.findFirst({
+      let isReseller = await this.prisma.reseller.findFirst({
         where: { email: data.email },
       });
       const planType = data.type as 'day' | 'week' | 'month';
@@ -197,8 +201,10 @@ export class CheckoutService {
         price -= (price / 100) * promoCode.percent;
       }
 
-      if (isReseller) {
+      if (isReseller && isReseller.email === user.email) {
         price -= (price / 100) * isReseller.prcent;
+      } else {
+        isReseller = null;
       }
 
       if (cheat.plan[data.type].prcent > 0) {
@@ -217,6 +223,8 @@ export class CheckoutService {
           cheatId: data.itemId,
           type: data.type,
           codes: [],
+          //@ts-ignore
+          reseller: isReseller ? isReseller.name : undefined,
           price: cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
           promoCode: promoCode?.code,
@@ -425,5 +433,14 @@ export class CheckoutService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async downloadDocument(id: string) {
+    const tr = await this.prisma.transaction.findFirst({
+      where: { id },
+      include: { user: true, cheat: true },
+    });
+    console.log(tr);
+    return tr;
   }
 }

@@ -8,12 +8,14 @@ import {
   Patch,
   Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ResellerService } from './reseller.service';
 import { CreateResellerDto, UpdateResellerDto } from './dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 @Controller('resellers')
 export class ResellerController {
@@ -51,9 +53,24 @@ export class ResellerController {
     }
   }
 
+  @Post('/check')
+  @UseGuards(OptionalJwtAuthGuard)
+  async check(@Body() { email }: { email: string }, @Req() req: any) {
+    try {
+      const user = req.user;
+      const res = await this.resellerService.check(email);
+      if (user && res?.email !== user?.email) {
+        return null;
+      }
+      return res;
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {
+      console.log(1);
       return this.resellerService.findOne(id);
     } catch (error) {
       await sendErrorNotification(error);
@@ -75,15 +92,6 @@ export class ResellerController {
   async remove(@Param('id') id: string) {
     try {
       return this.resellerService.remove(id);
-    } catch (error) {
-      await sendErrorNotification(error);
-    }
-  }
-
-  @Post('/check')
-  async check(@Body() { email }: { email: string }) {
-    try {
-      return this.resellerService.check(email);
     } catch (error) {
       await sendErrorNotification(error);
     }

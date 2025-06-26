@@ -10,6 +10,11 @@ import { isNumber } from 'class-validator';
 
 @Injectable()
 export class CatalogService {
+  fields = {
+    id: true,
+    price: true,
+    prcent: true,
+  };
   constructor(private prisma: PrismaService) {}
 
   async createCatalog(data: CreateDto) {
@@ -209,25 +214,38 @@ export class CatalogService {
   }
 
   async getTopCatalogs() {
-    return this.prisma.catalog.findMany({
+    return this.prisma.cheat.findMany({
       take: 6,
       orderBy: {
         position: 'desc',
       },
       where: {
-        type: 'published',
+        status: 'published',
       },
 
       include: {
-        cheats: {
-          where: {
-            status: 'published',
-          },
-          select: {
-            _count: true,
-            minimumPrice: true,
+        plan: {
+          include: {
+            day: {
+              select: this.fields,
+            },
+            week: {
+              select: this.fields,
+            },
+            month: {
+              select: this.fields,
+            },
           },
         },
+        // cheats: {
+        //   where: {
+        //     status: 'published',
+        //   },
+        //   select: {
+        //     _count: true,
+        //     minimumPrice: true,
+        //   },
+        // },
       },
     });
   }

@@ -6,6 +6,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Delete,
 } from '@nestjs/common';
 import { FaqService } from './faq.service';
 import { CreateStatDto, UpdateBlockDto } from './dto';
@@ -23,6 +24,16 @@ export class FaqController {
   async initBlocks() {
     try {
       return this.faqService.initBlocks();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Post('admin/remove')
+  async deleteStat(@Body() dto: { id: string }) {
+    try {
+      return this.faqService.deleteStat(dto.id);
     } catch (error) {
       await sendErrorNotification(error);
     }

@@ -176,8 +176,9 @@ model SmtpConfig {
 model Transaction {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   email      String
+  reseller   String?
   user       User?     @relation(fields: [userId], references: [id])
-  userId     String?  
+  userId     String?
   cheat      Cheat     @relation(fields: [cheatId], references: [id])
   cheatId    String
   type       String   

@@ -89,7 +89,7 @@ export class AuthService {
       const decoded = this.jwtService.verify(refreshToken);
       const accessToken = this.jwtService.sign(
         { userId: decoded.userId },
-        { expiresIn: '1h' },
+        { expiresIn: '7d' },
       );
 
       return { access_token: accessToken };
@@ -128,7 +128,7 @@ export class AuthService {
   generateTokens(id: any): { access_token: string; refresh_token: string } {
     const accessToken = this.jwtService.sign(
       { userId: id },
-      { expiresIn: '1h' },
+      { expiresIn: '2d' },
     );
     const refreshToken = this.jwtService.sign(
       { userId: id },

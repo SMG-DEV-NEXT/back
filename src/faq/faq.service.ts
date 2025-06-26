@@ -94,4 +94,10 @@ export class FaqService {
       include: { faqBlock: true },
     });
   }
+
+  async deleteStat(id: string) {
+    return this.prisma.faqStat.delete({
+      where: { id },
+    });
+  }
 }
