@@ -70,7 +70,6 @@ export class ResellerController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {
-      console.log(1);
       return this.resellerService.findOne(id);
     } catch (error) {
       await sendErrorNotification(error);
