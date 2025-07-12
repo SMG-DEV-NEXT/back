@@ -50,7 +50,7 @@ export class TelegramService {
   }
 
   extractUserId(str) {
-    const match = str.match(/\(ID:\s*([a-f0-9\-]{36})\)/i);
+    const match = str.match(/\(ID:\s?([a-zA-Z0-9_-]+)\)/);
     return match ? match[1] : null;
   }
 }
