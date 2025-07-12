@@ -141,17 +141,32 @@ export class AuthService {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
-  async enableTwoFactorAuth(userId: string) {
+  async enableTwoFactorAuth(user: User) {
+    if (user.twoFactorSecret) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isTwoFactorEnabled: true },
+      });
+      const otpAuthUrl = `otpauth://totp/SMG?secret=${user.twoFactorSecret}&issuer=SMG`;
+      const qrCodeDataURL = await QRCode.toDataURL(otpAuthUrl);
+      return { qrCode: qrCodeDataURL, secret: user.twoFactorSecret };
+    }
     const secret = speakeasy.generateSecret({
       length: 20,
       name: 'SMG',
     });
     const qrCodeDataURL = await QRCode.toDataURL(secret.otpauth_url);
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { twoFactorSecret: secret.base32, isTwoFactorEnabled: true },
     });
     return { qrCode: qrCodeDataURL, secret: secret.base32 };
+  }
+  async disableTwoFactorAuth(user: User) {
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isTwoFactorEnabled: false },
+    });
   }
   async getTwoFactorAuth(userId: string) {
     try {

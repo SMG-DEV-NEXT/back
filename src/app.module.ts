@@ -18,6 +18,8 @@ import { FaqModule } from './faq/faq.module';
 import { StatisticModule } from './statistic/statistic.module';
 import { StaticController } from './static.controller';
 import { UploadModule } from './upload/upload.module';
+import { TelegramModule } from './telegram/telegram.module';
+import { ReferralModule } from './referral/referral.module';
 @Module({
   imports: [
     AuthModule,
@@ -35,6 +37,8 @@ import { UploadModule } from './upload/upload.module';
     FaqModule,
     StatisticModule,
     UploadModule,
+    TelegramModule,
+    ReferralModule,
   ],
   controllers: [StaticController],
   providers: [PrismaService, MailService],

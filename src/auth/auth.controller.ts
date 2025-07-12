@@ -152,7 +152,13 @@ export class AuthController {
   @Post('/generate')
   @UseGuards(AuthGuard('jwt'))
   async generate(@Req() request: any) {
-    return this.authService.enableTwoFactorAuth(request.user.id);
+    return this.authService.enableTwoFactorAuth(request.user);
+  }
+
+  @Post('/disable-fa')
+  @UseGuards(AuthGuard('jwt'))
+  async DisableFa(@Req() request: any) {
+    return this.authService.disableTwoFactorAuth(request.user);
   }
 
   @Get('/get-qr')

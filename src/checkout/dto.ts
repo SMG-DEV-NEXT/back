@@ -21,6 +21,10 @@ export class CheckoutDto {
 
   @IsString()
   locale: string;
+
+  @IsString()
+  @IsOptional()
+  ref: string;
 }
 
 export class CreatePaymentDto {

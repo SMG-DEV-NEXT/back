@@ -76,9 +76,9 @@ export class CheatController {
   }
 
   @Get('view/:id')
-  async getByIdClient(@Param() params: ParamsIdDto) {
+  async getByIdClient(@Param() params: ParamsIdDto, @Query('ref') ref) {
     try {
-      return this.cheatService.getCheatView(params.id);
+      return this.cheatService.getCheatView(params.id, ref);
     } catch (error) {
       await sendErrorNotification(error);
     }

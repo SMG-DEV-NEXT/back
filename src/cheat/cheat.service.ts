@@ -101,7 +101,8 @@ export class CheatService {
     });
   }
 
-  async getCheatView(id: string) {
+  async getCheatView(id: string, ref: any) {
+    let refUser = null;
     const cheat = await this.prisma.cheat.findFirst({
       where: {
         id,
@@ -122,6 +123,27 @@ export class CheatService {
         catalog: true,
       },
     });
+    if (ref) {
+      refUser = await this.prisma.referral.findFirst({
+        where: { code: ref },
+        select: {
+          prcentToPrice: true,
+          owner: true,
+        },
+      });
+      if (refUser) {
+        await this.prisma.referral.update({
+          where: {
+            code: ref,
+          },
+          data: {
+            viewsCount: {
+              increment: 1,
+            },
+          },
+        });
+      }
+    }
     const dayCount = cheat.plan.day?.keys.length;
     const weekCount = cheat.plan.week?.keys.length;
     const monthCount = cheat.plan.month?.keys.length;
@@ -134,6 +156,7 @@ export class CheatService {
       dayCount,
       weekCount,
       monthCount,
+      refUser,
     };
   }
 

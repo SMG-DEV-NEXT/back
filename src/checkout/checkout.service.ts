@@ -173,12 +173,15 @@ export class CheckoutService {
     user: User,
   ): Promise<string> {
     try {
+      const ref = data.ref;
+      let refOwner = null;
       const user = await this.prisma.user.findFirst({
         where: { email: data.email },
       });
       let isReseller = await this.prisma.reseller.findFirst({
         where: { email: data.email },
       });
+
       const planType = data.type as 'day' | 'week' | 'month';
 
       const cheat = await this.prisma.cheat.findFirst({
@@ -196,20 +199,29 @@ export class CheckoutService {
       if (keyses.length < data.count)
         throw new BadRequestException('Недостаточно ключей');
       let price = cheat.plan[data.type]?.price;
-
+      const initialPrice = cheat.plan[data.type]?.price;
+      if (ref) {
+        refOwner = await this.prisma.referral.findFirst({
+          where: {
+            code: ref,
+          },
+        });
+        if (refOwner && refOwner.prcentToPrice > 0) {
+          price -= (initialPrice / 100) * refOwner.prcentToPrice;
+        }
+      }
       if (promoCode && promoCode.count < promoCode.maxActivate) {
-        price -= (price / 100) * promoCode.percent;
+        price -= (initialPrice / 100) * promoCode.percent;
       }
 
       if (isReseller && isReseller.email === user.email) {
-        price -= (price / 100) * isReseller.prcent;
+        price -= (initialPrice / 100) * isReseller.prcent;
       } else {
         isReseller = null;
       }
 
       if (cheat.plan[data.type].prcent > 0) {
-        price -=
-          (cheat.plan[data.type].price / 100) * cheat.plan[data.type].prcent;
+        price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
       }
 
       const finalPrice = Math.round(price * data.count); // рубли * кол-во
@@ -223,6 +235,7 @@ export class CheckoutService {
           cheatId: data.itemId,
           type: data.type,
           codes: [],
+          referralId: refOwner ? refOwner.id : null,
           //@ts-ignore
           reseller: isReseller ? isReseller.name : undefined,
           price: cheat.plan[data.type].price * data.count,
@@ -291,6 +304,18 @@ export class CheckoutService {
           data: {
             count: {
               increment: 1,
+            },
+          },
+        });
+      }
+      if (transaction.referralId) {
+        await this.prisma.referral.update({
+          where: { code: transaction.referralId },
+          data: {
+            transactions: {
+              connect: {
+                id: transaction.id,
+              },
             },
           },
         });
@@ -388,10 +413,25 @@ export class CheckoutService {
     endDate?: Date;
     page?: number;
     limit?: number;
+    search?: string;
   }) {
-    const { cheatId, startDate, endDate, page = 1, limit = 10 } = params;
+    const {
+      cheatId,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      search,
+    } = params;
 
     const where: any = {};
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+
+        { ip: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     if (cheatId) {
       where.cheatId = cheatId;
@@ -440,7 +480,6 @@ export class CheckoutService {
       where: { id },
       include: { user: true, cheat: true },
     });
-    console.log(tr);
     return tr;
   }
 }

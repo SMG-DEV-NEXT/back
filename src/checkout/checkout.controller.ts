@@ -83,7 +83,6 @@ export class CheckoutController {
     if (transaction.email !== user.email) {
       return null;
     }
-    console.log(locale);
     const instructions =
       locale === 'ru'
         ? transaction.cheat.instructionRu || 'Инструкции недоступны.'
@@ -128,6 +127,7 @@ export class CheckoutController {
     @Query('cheatId') cheatId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
@@ -137,6 +137,7 @@ export class CheckoutController {
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         page: parseInt(page, 10),
+        search,
         limit: parseInt(limit, 10),
       });
     } catch (error) {

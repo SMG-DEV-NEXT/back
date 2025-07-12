@@ -26,12 +26,5 @@ ${codesFormatted || 'No codes found'}
 📘 Instructions
 ------------------------------
 ${instructions}
-
-------------------------------
-❓ Support
-------------------------------
-If you need help, please contact support@example.com
-
-Thank you for your purchase!
   `.trim();
 };

@@ -191,6 +191,8 @@ model Transaction {
   isVisited  Boolean @default(false)
   ip         String?
   status     String @default("active")
+  referralId   String?       // optional
+  referral     Referral?     @relation("ReferralTransactions", fields: [referralId], references: [id])
 }
 
 model FaqBlock {
@@ -220,4 +222,23 @@ enum StatType {
   TABLE
   IMAGE
   CUSTOM
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  userId    String
+  text      String
+  role      String
+  timestamp DateTime @default(now())
+}
+
+model Referral {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt     DateTime       @default(now())
+  code          String         @unique
+  owner         String         // Admin user ID or name
+  prcentToPrice Int
+  viewsCount    Int            @default(0)
+  transactions  Transaction[]  @relation("ReferralTransactions")
 }
