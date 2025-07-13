@@ -34,6 +34,7 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '1024mb', extended: true }));
   app.use(json({ limit: '1024mb' }));
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
+  console.log('aa');
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
     prefix: '/api/uploads/',
     setHeaders: (res, path) => {
