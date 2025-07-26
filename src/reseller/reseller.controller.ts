@@ -9,9 +9,15 @@ import {
   Delete,
   UseGuards,
   Req,
+  Put,
 } from '@nestjs/common';
 import { ResellerService } from './reseller.service';
-import { CreateResellerDto, UpdateResellerDto } from './dto';
+import {
+  CreateResellerDto,
+  ResellerRequestDto,
+  UpdateRequestDto,
+  UpdateResellerDto,
+} from './dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
@@ -48,6 +54,45 @@ export class ResellerController {
   async findAllRaw() {
     try {
       return this.resellerService.findAllRaw();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Post('/request')
+  async request(@Body() dto: ResellerRequestDto) {
+    try {
+      return this.resellerService.request(dto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Put('/request')
+  async requestUpdate(@Body() dto: UpdateRequestDto) {
+    try {
+      const { id, ...data } = dto;
+      return this.resellerService.updateRequest(id, data);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Get('/request')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async getAllRequests(@Query('skip') skip = '0', @Query('take') take = '10') {
+    try {
+      return this.resellerService.getAllRequests(Number(skip), Number(take));
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Delete('/request/:id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async removeRequest(@Param('id') id: string) {
+    try {
+      return this.resellerService.removeRequest(id);
     } catch (error) {
       await sendErrorNotification(error);
     }

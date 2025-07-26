@@ -41,3 +41,28 @@ export class UpdateResellerDto {
   @Max(100)
   prcent?: number;
 }
+
+export class ResellerRequestDto {
+  @IsNotEmpty({ message: 'resourse_required' })
+  resourse: string;
+
+  @IsEmail({}, { message: 'email_invalid' })
+  email: string;
+
+  @IsNotEmpty({ message: 'count_required' })
+  count: string;
+
+  @IsNotEmpty({ message: 'product_required' })
+  product: string;
+
+  @IsNotEmpty({ message: 'pay_required' })
+  payMethod: string;
+}
+
+export class UpdateRequestDto {
+  @IsNotEmpty()
+  not: string;
+
+  @IsNotEmpty()
+  id: string;
+}

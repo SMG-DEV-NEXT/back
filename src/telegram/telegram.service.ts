@@ -2,6 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { ResellerRequestDto } from 'src/reseller/dto';
 import { Telegraf } from 'telegraf';
 
 @Injectable()
@@ -28,6 +29,22 @@ export class TelegramService {
       chat === 'support'
         ? process.env.SUPPORT_CHAT_ID
         : process.env.TELEGRAM_ADMIN_GROUP_ID;
+    try {
+      await axios.post(
+        `https://api.telegram.org/bot${this.token}/sendMessage`,
+        {
+          chat_id: idChat,
+          text: msg,
+        },
+      );
+    } catch (e) {
+      return e;
+    }
+  }
+
+  async sendMessageReseller(dto: ResellerRequestDto) {
+    const msg = `👤 FROM WEB APPLICATION \n email - ${dto.email} \n Auditory - around ${dto.count} \n Pay method - ${dto.payMethod} \n Products recomendation - ${dto.product} \n Resourse - ${dto.resourse}`;
+    const idChat = process.env.TELEGRAM_GROUP_ID;
     try {
       await axios.post(
         `https://api.telegram.org/bot${this.token}/sendMessage`,
