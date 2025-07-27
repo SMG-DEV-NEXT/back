@@ -414,6 +414,9 @@ export class CheckoutService {
     page?: number;
     limit?: number;
     search?: string;
+    reseller?: boolean;
+    referral?: boolean;
+    promo?: boolean;
   }) {
     const {
       cheatId,
@@ -422,6 +425,9 @@ export class CheckoutService {
       page = 1,
       limit = 10,
       search,
+      referral,
+      reseller,
+      promo,
     } = params;
 
     const where: any = {};
@@ -436,7 +442,21 @@ export class CheckoutService {
     if (cheatId) {
       where.cheatId = cheatId;
     }
-
+    if (referral) {
+      where.referralId = {
+        not: null,
+      };
+    }
+    if (reseller) {
+      where.reseller = {
+        not: null,
+      };
+    }
+    if (promo) {
+      where.promoCode = {
+        not: null,
+      };
+    }
     if (startDate && endDate) {
       where.createdAt = {
         gte: startDate,
@@ -451,7 +471,6 @@ export class CheckoutService {
         lte: endDate,
       };
     }
-
     const transactions = await this.prisma.transaction.findMany({
       where,
       skip: (page - 1) * limit,

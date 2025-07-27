@@ -130,6 +130,9 @@ export class CheckoutController {
     @Query('search') search?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
+    @Query('referral') referral?: boolean,
+    @Query('reseller') reseller?: boolean,
+    @Query('promo') promo?: boolean,
   ) {
     try {
       return this.checkoutService.getFilteredTransactions({
@@ -139,6 +142,9 @@ export class CheckoutController {
         page: parseInt(page, 10),
         search,
         limit: parseInt(limit, 10),
+        referral,
+        reseller,
+        promo,
       });
     } catch (error) {
       await sendErrorNotification(error);
