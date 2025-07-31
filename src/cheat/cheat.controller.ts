@@ -9,6 +9,7 @@ import {
   UseGuards,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import { CheatService } from './cheat.service';
 import {
@@ -21,6 +22,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 @Controller('cheats')
 export class CheatController {
@@ -76,9 +78,15 @@ export class CheatController {
   }
 
   @Get('view/:id')
-  async getByIdClient(@Param() params: ParamsIdDto, @Query('ref') ref) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async getByIdClient(
+    @Param() params: ParamsIdDto,
+    @Query('ref') ref,
+    @Req() req: any,
+  ) {
     try {
-      return this.cheatService.getCheatView(params.id, ref);
+      const user = req.user;
+      return this.cheatService.getCheatView(params.id, ref, user);
     } catch (error) {
       await sendErrorNotification(error);
     }

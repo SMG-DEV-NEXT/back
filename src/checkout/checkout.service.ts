@@ -225,7 +225,6 @@ export class CheckoutService {
       }
 
       const finalPrice = Math.round(price * data.count); // рубли * кол-во
-
       // 1. Создаём транзакцию с пометкой "pending"
       // @ts-nocheck
       const transaction = await this.prisma.transaction.create({
@@ -309,16 +308,22 @@ export class CheckoutService {
         });
       }
       if (transaction.referralId) {
-        await this.prisma.referral.update({
-          where: { code: transaction.referralId },
-          data: {
-            transactions: {
-              connect: {
-                id: transaction.id,
+        const referral = await this.prisma.referral.findUnique({
+          where: { id: transaction.referralId },
+        });
+
+        if (referral) {
+          await this.prisma.referral.update({
+            where: { id: transaction.referralId },
+            data: {
+              transactions: {
+                connect: { id: transaction.id },
               },
             },
-          },
-        });
+          });
+        } else {
+          console.warn('Referral not found, skipping connect');
+        }
       }
       if (!transaction || transaction.status === 'success') return;
 

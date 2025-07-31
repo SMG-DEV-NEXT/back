@@ -7,6 +7,7 @@ import { PlanService } from 'src/plan/plan.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCheatDto, GetCheatsDto } from './dto';
 import { isNumber } from 'class-validator';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class CheatService {
@@ -101,8 +102,9 @@ export class CheatService {
     });
   }
 
-  async getCheatView(id: string, ref: any) {
+  async getCheatView(id: string, ref: any, user: User) {
     let refUser = null;
+
     const cheat = await this.prisma.cheat.findFirst({
       where: {
         id,
@@ -150,6 +152,22 @@ export class CheatService {
     delete cheat.plan.day?.keys;
     delete cheat.plan.week?.keys;
     delete cheat.plan.month?.keys;
+    if (user) {
+      const commentAccess = await this.prisma.transaction.findFirst({
+        where: {
+          cheatId: cheat.id,
+          userId: user.id,
+        },
+      });
+      return {
+        ...cheat,
+        dayCount,
+        weekCount,
+        monthCount,
+        refUser,
+        commentAccess: !!commentAccess,
+      };
+    }
 
     return {
       ...cheat,
@@ -157,6 +175,7 @@ export class CheatService {
       weekCount,
       monthCount,
       refUser,
+      commentAccess: false,
     };
   }
 
