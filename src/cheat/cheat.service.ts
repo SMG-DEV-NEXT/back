@@ -114,7 +114,7 @@ export class CheatService {
 
     const cheat = await this.prisma.cheat.findFirst({
       where: {
-        link: id,
+        OR: [{ link: id }, { id: id }],
       },
       include: {
         comments: {
