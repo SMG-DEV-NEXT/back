@@ -57,7 +57,7 @@ export class CatalogService {
   async getCatalog(id: string) {
     const catalog = this.prisma.catalog.findFirst({
       include: { cheats: true },
-      where: { id },
+      where: { link: id },
       orderBy: {
         position: 'desc',
       },
@@ -224,6 +224,11 @@ export class CatalogService {
       },
 
       include: {
+        catalog: {
+          select: {
+            link: true,
+          },
+        },
         plan: {
           include: {
             day: {

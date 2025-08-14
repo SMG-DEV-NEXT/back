@@ -32,6 +32,7 @@ model Catalog {
   headEn   String
   metaRu   String
   metaEn   String
+  link     String?
   type     String  @default("unpublish") // "published" or "unpublish"
   position Int
   imageUrl String?

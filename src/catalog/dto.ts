@@ -9,6 +9,10 @@ export class CreateDto {
   headRu: string;
 
   @IsString()
+  @IsOptional()
+  link: string;
+
+  @IsString()
   headEn: string;
 
   @IsString()

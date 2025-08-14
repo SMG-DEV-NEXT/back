@@ -74,6 +74,13 @@ export class CheatService {
           { aboutRu: { contains: search, mode: 'insensitive' } },
         ],
       },
+      include: {
+        catalog: {
+          select: {
+            link: true,
+          },
+        },
+      },
     });
   }
 
@@ -107,7 +114,7 @@ export class CheatService {
 
     const cheat = await this.prisma.cheat.findFirst({
       where: {
-        id,
+        link: id,
       },
       include: {
         comments: {
@@ -296,16 +303,25 @@ export class CheatService {
   }
 
   async apiCheats(dto: GetCheatsDto) {
-    const { search, page: p, limit: l, type, price_end, price_start } = dto;
+    const {
+      search,
+      page: p,
+      limit: l,
+      type,
+      price_end,
+      price_start,
+      catalogId,
+    } = dto;
     const page = p * 1;
     const limit = l * 1;
     const skip = (page - 1) * limit;
-
     const [data, catalog] = await Promise.all([
       this.prisma.cheat.findMany({
         where: {
           status: 'published',
-          catalogId: dto.catalogId,
+          catalog: {
+            link: catalogId,
+          },
           OR: [
             { titleEn: { contains: search, mode: 'insensitive' } },
             { titleRu: { contains: search, mode: 'insensitive' } },
@@ -328,7 +344,7 @@ export class CheatService {
           position: 'desc',
         },
       }),
-      this.prisma.catalog.findFirst({ where: { id: dto.catalogId } }),
+      this.prisma.catalog.findFirst({ where: { link: dto.catalogId } }),
     ]);
     let cheats = [...data];
 
