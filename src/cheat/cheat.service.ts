@@ -114,7 +114,7 @@ export class CheatService {
 
     const cheat = await this.prisma.cheat.findFirst({
       where: {
-        OR: [{ link: id }, { id: id }],
+        link: id,
       },
       include: {
         comments: {
@@ -132,6 +132,7 @@ export class CheatService {
         catalog: true,
       },
     });
+    console.log(cheat, id);
     if (ref) {
       refUser = await this.prisma.referral.findFirst({
         where: { code: ref },

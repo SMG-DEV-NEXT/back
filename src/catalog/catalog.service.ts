@@ -58,7 +58,23 @@ export class CatalogService {
     const catalog = this.prisma.catalog.findFirst({
       include: { cheats: true },
       where: {
-        OR: [{ link: id }, { id: id }],
+        link: id,
+      },
+      orderBy: {
+        position: 'desc',
+      },
+    });
+    if (!catalog) {
+      throw new NotFoundException('Каталог не найден');
+    }
+    return catalog;
+  }
+
+  async getCatalogAdmin(id: string) {
+    const catalog = this.prisma.catalog.findFirst({
+      include: { cheats: true },
+      where: {
+        id: id,
       },
       orderBy: {
         position: 'desc',

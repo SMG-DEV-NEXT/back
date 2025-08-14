@@ -83,6 +83,15 @@ export class CatalogController {
     }
   }
 
+  @Get('/admin/:id')
+  async getCatalogAdmin(@Param('id') id: string) {
+    try {
+      return this.catalogService.getCatalogAdmin(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Get(':id')
   async getCatalog(@Param('id') id: string) {
     try {
