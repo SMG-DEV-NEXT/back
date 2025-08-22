@@ -114,7 +114,7 @@ export class StatisticService {
   private getPercentChange(current: number, previous: number): number {
     if (previous === 0 && current === 0) return 0;
     if (previous === 0) return 100;
-    return +(((current - previous) / previous) * 100).toFixed(1);
+    return +((current / previous) * 100).toFixed(1);
   }
 
   private async getDailyCount(type: string) {
@@ -222,13 +222,12 @@ export class StatisticService {
       const half = Math.floor(dailyRevenue.length / 2);
       const previous = dailyRevenue.slice(0, half).reduce((a, b) => a + b, 0);
       const current = dailyRevenue.slice(half).reduce((a, b) => a + b, 0);
-
       percent =
         previous === 0
           ? current === 0
             ? 0
             : 100
-          : +(((current - previous) / previous) * 100).toFixed(1);
+          : +((current / previous) * 100).toFixed(1);
 
       trend = dailyRevenue.slice(half);
     }
