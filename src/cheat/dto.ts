@@ -23,6 +23,7 @@ export class CreateCheatDto {
   @IsString() metaTitleEn: string;
   @IsString() metaRu: string;
   @IsString() metaEn: string;
+  @IsArray() thumbnailVideo: string[];
   @IsArray() tags: { ru: string; en: string }[];
   @IsArray() images: string[];
   @IsArray() videos: string[];
@@ -94,6 +95,10 @@ export class UpdateCheatDto {
   @IsArray()
   @IsOptional()
   videosLink?: string[];
+
+  @IsArray()
+  @IsOptional()
+  thumbnailVideo?: string[];
 
   @IsArray()
   @IsOptional()

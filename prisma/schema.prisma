@@ -97,6 +97,7 @@ model Cheat {
   metaTitleEn    String
   metaRu         String
   metaEn         String
+  thumbnailVideo String[]
   tags           Json // Array of objects [{ru: "string", en: "string"}]
   images         String[] // Array of image URLs
   videos         String[] // Array of video URLs
