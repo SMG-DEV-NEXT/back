@@ -235,7 +235,7 @@ export class CatalogService {
     return this.prisma.cheat.findMany({
       take: 6,
       orderBy: {
-        position: 'desc',
+        position: 'asc',
       },
       where: {
         status: 'published',

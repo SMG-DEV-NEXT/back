@@ -113,6 +113,8 @@ model Cheat {
   comments       Comment[]
   minimumPrice   Int @default(1000)
   transactions Transaction[]
+  h1Ru           String? @default("")
+  h1En           String? @default("")
 }
 
 model Comment {
