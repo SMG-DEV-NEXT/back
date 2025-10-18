@@ -15,12 +15,14 @@ import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import * as moment from 'moment-timezone';
 import axios from 'axios';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class CheckoutService {
   constructor(
     private prisma: PrismaService,
     private smtpService: SmtpService,
+    private mail: MailService,
     private readonly httpService: HttpService,
   ) {}
   private readonly PAYMENT_URL =
@@ -61,14 +63,13 @@ export class CheckoutService {
 
   async sendMail(transaction: Transaction) {
     try {
-      const transporter = await this.smtpService.createTransporter();
       const html = generatorAfterCheckoutMail(transaction);
-      await transporter.sendMail({
-        from: `"SMG" <smg@gmail.com>`,
-        to: transaction.email,
-        subject: 'Checkout Email',
+      this.mail.sendMail(
+        transaction.email,
+        transaction.userLanguage === 'en' ? 'Checkout Email' : 'Чек-аут Email',
+        null,
         html,
-      });
+      );
     } catch (error) {
       console.log(error);
     }
@@ -148,6 +149,7 @@ export class CheckoutService {
           count: data.count,
           status: 'pending',
           ip,
+          userLanguage: data.locale,
         },
       });
       await this.prisma.period.update({
@@ -244,6 +246,7 @@ export class CheckoutService {
           ip,
           // @ts-ignore
           status: 'pending',
+          userLanguage: data.locale,
         },
       });
 
@@ -278,7 +281,7 @@ export class CheckoutService {
         external_id: transaction.id,
       });
 
-      return `${process.env.FRONT_URL}/ru/preview/${transaction.id}`;
+      return `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`;
       // return response.data.Data.redirectURL;
     } catch (error) {
       console.log(error);

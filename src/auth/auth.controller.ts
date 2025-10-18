@@ -40,7 +40,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const { name, email, password } = registerDto;
+      const { name, email, password, lang } = registerDto;
       const sanitizedEmail = this.sanitizeService.sanitizeHtml(email);
       const sanitizedName = this.sanitizeService.sanitizeHtml(name);
       const findUser = await this.authService.getUserByEmail(email);
@@ -51,6 +51,7 @@ export class AuthController {
         sanitizedName,
         sanitizedEmail,
         password,
+        lang,
       );
       const { access_token, refresh_token } = this.authService.generateTokens(
         user.id,
@@ -180,7 +181,10 @@ export class AuthController {
   @Post('/forget-email')
   async forgetStep1(@Body() forgetDto: ForgetDtoStep1, @Res() res: Response) {
     try {
-      const data = await this.authService.forgetStep1(forgetDto.email);
+      const data = await this.authService.forgetStep1(
+        forgetDto.email,
+        forgetDto.lang,
+      );
       return res.status(200).send(data);
     } catch (error) {
       return res.status(400).send(error);

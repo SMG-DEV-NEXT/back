@@ -38,6 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           isTwoFactorEnabled: true,
           isAdmin: true,
           comments: true,
+          accept: true,
           transactions: { include: { cheat: true } },
         },
       });

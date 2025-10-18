@@ -20,6 +20,7 @@ import { StaticController } from './static.controller';
 import { UploadModule } from './upload/upload.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { ReferralModule } from './referral/referral.module';
+import { TokenModule } from './token/token.module';
 @Module({
   imports: [
     AuthModule,
@@ -39,6 +40,7 @@ import { ReferralModule } from './referral/referral.module';
     UploadModule,
     TelegramModule,
     ReferralModule,
+    TokenModule,
   ],
   controllers: [StaticController],
   providers: [PrismaService, MailService],

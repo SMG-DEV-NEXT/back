@@ -11,7 +11,12 @@ import { Response } from 'express';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { MailService } from 'src/mail/mail.service';
-import { generateForgetPasswordMail } from 'src/mail/generator';
+import {
+  generateForgetPasswordMail,
+  generateForRegistrationEn,
+  generateForRegistrationRu,
+} from 'src/mail/generator';
+import { TokenService } from 'src/token/token.service';
 
 @Injectable()
 export class AuthService {
@@ -19,12 +24,23 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private mailer: MailService,
+    private tokenService: TokenService,
   ) {}
 
-  async register(name: string, email: string, password: string): Promise<User> {
+  async register(
+    name: string,
+    email: string,
+    password: string,
+    lang: string,
+  ): Promise<User> {
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    return this.prisma.user.create({
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      throw new BadRequestException('email_already_exists');
+    }
+    const user = await this.prisma.user.create({
       data: {
         name,
         email,
@@ -32,12 +48,27 @@ export class AuthService {
         raiting: '0',
         isTwoFactorEnabled: false,
         resetCode: '',
+        accept: false,
       },
       include: {
         transactions: true,
         comments: true,
       },
     });
+    const token = await this.tokenService.createToken(user.id);
+    await this.mailer.sendMail(
+      user.email,
+      lang === 'ru' ? 'Подтверждение регистрации' : 'Registration Confirmation',
+      null,
+      lang === 'ru'
+        ? generateForRegistrationRu(
+            `${process.env.FRONT_URL}/${lang}/?token=${token.token}`,
+          )
+        : generateForRegistrationEn(
+            `${process.env.FRONT_URL}/${lang}/?token=${token.token}`,
+          ),
+    );
+    return user;
   }
 
   async login(email: string, password: string, code: string): Promise<any> {
@@ -195,7 +226,7 @@ export class AuthService {
     });
   }
 
-  async forgetStep1(email: string) {
+  async forgetStep1(email: string, lang: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
@@ -212,7 +243,7 @@ export class AuthService {
       email,
       'Reset Your Password',
       null,
-      generateForgetPasswordMail(code),
+      generateForgetPasswordMail(code, lang),
     );
 
     return { message: 'Code sended.', isTwoFactor: false };
@@ -276,7 +307,7 @@ export class AuthService {
       },
     });
 
-    const { password: _, ...data } = update;
+    const { password: _, accept, ...data } = update;
     return data;
   }
 }

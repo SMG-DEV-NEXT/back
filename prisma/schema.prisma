@@ -20,7 +20,16 @@ model User {
   resetCode          String?
   isAdmin            Boolean  @default(false)
   comments           Comment[]
+  token              Token?
+  accept             Boolean? @default(false)
   transactions Transaction[]
+}
+
+model Token {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String @db.ObjectId @unique
+  user        User @relation(fields:[userId],references:[id])
+  token       String
 }
 
 
@@ -208,6 +217,7 @@ model Transaction {
   status     String @default("active")
   referralId   String?       // optional
   referral     Referral?     @relation("ReferralTransactions", fields: [referralId], references: [id])
+  userLanguage  String? @default("ru")
 }
 
 model FaqBlock {

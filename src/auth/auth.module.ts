@@ -7,6 +7,7 @@ import { SanitizeService } from 'src/santizie/santizie.service';
 import { JwtStrategy } from 'src/credentials/jwt';
 import { TwoFactorAuthService } from 'src/twofactor/towfactor.service';
 import { MailService } from 'src/mail/mail.service';
+import { TokenService } from 'src/token/token.service';
 @Module({
   imports: [
     JwtModule.register({
@@ -21,6 +22,7 @@ import { MailService } from 'src/mail/mail.service';
     JwtStrategy,
     TwoFactorAuthService,
     MailService,
+    TokenService,
   ],
   controllers: [AuthController],
   exports: [AuthService],

@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'name_required' })
@@ -9,6 +15,9 @@ export class RegisterDto {
 
   @MinLength(8, { message: 'password_min_8' })
   password: string;
+
+  @IsString()
+  lang: string;
 }
 
 export class UpdateDto {
@@ -37,6 +46,9 @@ export class LoginDto {
 export class ForgetDtoStep1 {
   @IsEmail({}, { message: 'email_invalid' })
   email: string;
+
+  @IsString()
+  lang: string;
 }
 
 export class ForgetDtoStep2 {
