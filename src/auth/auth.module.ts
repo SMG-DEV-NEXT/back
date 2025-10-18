@@ -8,6 +8,7 @@ import { JwtStrategy } from 'src/credentials/jwt';
 import { TwoFactorAuthService } from 'src/twofactor/towfactor.service';
 import { MailService } from 'src/mail/mail.service';
 import { TokenService } from 'src/token/token.service';
+import { RecaptchaService } from 'src/recaptcha/recaptcha.service';
 @Module({
   imports: [
     JwtModule.register({
@@ -23,6 +24,7 @@ import { TokenService } from 'src/token/token.service';
     TwoFactorAuthService,
     MailService,
     TokenService,
+    RecaptchaService,
   ],
   controllers: [AuthController],
   exports: [AuthService],

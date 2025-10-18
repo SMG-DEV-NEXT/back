@@ -18,6 +18,9 @@ export class RegisterDto {
 
   @IsString()
   lang: string;
+
+  @IsString()
+  token: string;
 }
 
 export class UpdateDto {

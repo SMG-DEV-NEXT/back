@@ -40,7 +40,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const { name, email, password, lang } = registerDto;
+      const { name, email, password, lang, token } = registerDto;
       const sanitizedEmail = this.sanitizeService.sanitizeHtml(email);
       const sanitizedName = this.sanitizeService.sanitizeHtml(name);
       const findUser = await this.authService.getUserByEmail(email);
@@ -52,6 +52,7 @@ export class AuthController {
         sanitizedEmail,
         password,
         lang,
+        token,
       );
       const { access_token, refresh_token } = this.authService.generateTokens(
         user.id,

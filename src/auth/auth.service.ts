@@ -17,6 +17,7 @@ import {
   generateForRegistrationRu,
 } from 'src/mail/generator';
 import { TokenService } from 'src/token/token.service';
+import { RecaptchaService } from 'src/recaptcha/recaptcha.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private jwtService: JwtService,
     private mailer: MailService,
     private tokenService: TokenService,
+    private recaptchaService: RecaptchaService,
   ) {}
 
   async register(
@@ -32,7 +34,9 @@ export class AuthService {
     email: string,
     password: string,
     lang: string,
+    token: string,
   ): Promise<User> {
+    await this.recaptchaService.validate(token);
     const hashedPassword = await bcrypt.hash(password, 10);
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -55,17 +59,17 @@ export class AuthService {
         comments: true,
       },
     });
-    const token = await this.tokenService.createToken(user.id);
+    const authToken = await this.tokenService.createToken(user.id);
     await this.mailer.sendMail(
       user.email,
       lang === 'ru' ? 'Подтверждение регистрации' : 'Registration Confirmation',
       null,
       lang === 'ru'
         ? generateForRegistrationRu(
-            `${process.env.FRONT_URL}/${lang}/?token=${token.token}`,
+            `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
           )
         : generateForRegistrationEn(
-            `${process.env.FRONT_URL}/${lang}/?token=${token.token}`,
+            `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
           ),
     );
     return user;
