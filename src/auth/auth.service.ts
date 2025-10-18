@@ -75,6 +75,29 @@ export class AuthService {
     return user;
   }
 
+  async resendEmail(email: string, lang: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      throw new BadRequestException('user_not_found');
+    }
+    const authToken = await this.tokenService.findTokenByUserId(user.id);
+    await this.mailer.sendMail(
+      user.email,
+      lang === 'ru' ? 'Подтверждение регистрации' : 'Registration Confirmation',
+      null,
+      lang === 'ru'
+        ? generateForRegistrationRu(
+            `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
+          )
+        : generateForRegistrationEn(
+            `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
+          ),
+    );
+    return user;
+  }
+
   async login(email: string, password: string, code: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email },

@@ -130,6 +130,18 @@ export class AuthController {
     return res.status(200).send(user);
   }
 
+  @Post('/resend-email')
+  @UseGuards(AuthGuard('jwt'))
+  async resendEmail(
+    @Req() request: any,
+    @Res() res: Response,
+    @Body() { lang }: { lang: string },
+  ) {
+    const user = await request.user;
+    await this.authService.resendEmail(user.email, lang);
+    return res.status(200).send(true);
+  }
+
   @Get('verify')
   async verifyToken(
     @Req() req: Request,

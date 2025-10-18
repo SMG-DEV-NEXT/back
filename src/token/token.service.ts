@@ -30,4 +30,10 @@ export class TokenService {
     });
     return true;
   }
+
+  async findTokenByUserId(userId: string) {
+    return this.prisma.token.findFirst({
+      where: { userId },
+    });
+  }
 }
