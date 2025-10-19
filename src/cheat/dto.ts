@@ -31,7 +31,7 @@ export class CreateCheatDto {
   @IsArray() functions: any[];
   @IsString() instructionRu: string;
   @IsString() instructionEn: string;
-  @IsArray() requirments: any[];
+  @IsObject() requirments: Record<string, any>;
   @IsNumber() minimumPrice: number;
 }
 
@@ -104,9 +104,9 @@ export class UpdateCheatDto {
   @IsOptional()
   functions?: string[];
 
-  @IsArray()
+  @IsObject()
   @IsOptional()
-  requirmens?: string[];
+  requirments?: Record<string, any>;
 
   @IsString()
   @IsOptional()

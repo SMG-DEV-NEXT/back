@@ -239,6 +239,9 @@ export class CatalogService {
       },
       where: {
         status: 'published',
+        catalog: {
+          type: 'published',
+        },
       },
 
       include: {
