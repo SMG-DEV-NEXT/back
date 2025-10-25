@@ -98,6 +98,7 @@ model Cheat {
   position       Int
   aboutRu        String
   aboutEn        String
+  visibility     String
   image1         String
   image2         String
   type           String
@@ -124,6 +125,7 @@ model Cheat {
   transactions Transaction[]
   h1Ru           String? @default("")
   h1En           String? @default("")
+  updatedAt      DateTime @updatedAt
 }
 
 model Comment {

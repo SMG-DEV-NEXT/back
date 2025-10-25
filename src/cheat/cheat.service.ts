@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PlanService } from 'src/plan/plan.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateCheatDto, GetCheatsDto } from './dto';
+import { CreateCheatDto, GetCheatsDto, GetStatusCheatsDto } from './dto';
 import { isNumber } from 'class-validator';
 import { User } from '@prisma/client';
 
@@ -60,6 +60,7 @@ export class CheatService {
       orderBy: {
         position: 'desc',
       },
+
       include: { catalog: true },
     });
   }
@@ -414,6 +415,64 @@ export class CheatService {
       },
       orderBy: {
         position: 'desc',
+      },
+    });
+  }
+
+  async getCheatStatusPageData(filters: GetStatusCheatsDto) {
+    const search = filters.search;
+    if (filters.type === 'all') {
+      return this.prisma.cheat.findMany({
+        where: {
+          status: 'published',
+          OR: [
+            { titleEn: { contains: search, mode: 'insensitive' } },
+            { titleRu: { contains: search, mode: 'insensitive' } },
+            { aboutEn: { contains: search, mode: 'insensitive' } },
+            { aboutRu: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          titleEn: true,
+          titleRu: true,
+          updatedAt: true,
+          imageUrl: true,
+          visibility: true,
+          link: true,
+          image1: true,
+          catalog: {
+            select: {
+              link: true,
+            },
+          },
+        },
+      });
+    }
+    return this.prisma.cheat.findMany({
+      where: {
+        status: 'published',
+        visibility: filters.type,
+
+        OR: [
+          { titleEn: { contains: search, mode: 'insensitive' } },
+          { titleRu: { contains: search, mode: 'insensitive' } },
+          { aboutEn: { contains: search, mode: 'insensitive' } },
+          { aboutRu: { contains: search, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        titleEn: true,
+        titleRu: true,
+        updatedAt: true,
+        imageUrl: true,
+        visibility: true,
+        link: true,
+        image1: true,
+        catalog: {
+          select: {
+            link: true,
+          },
+        },
       },
     });
   }

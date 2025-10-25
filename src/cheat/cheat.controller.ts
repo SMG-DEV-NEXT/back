@@ -15,6 +15,7 @@ import { CheatService } from './cheat.service';
 import {
   CreateCheatDto,
   GetCheatsDto,
+  GetStatusCheatsDto,
   ParamsFilterDto,
   ParamsIdDto,
   UpdateCheatDto,
@@ -62,6 +63,15 @@ export class CheatController {
   async getAllWithPlans(@Param() params: ParamsFilterDto) {
     try {
       return this.cheatService.getAllWithPlans(params.catalogId);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Get('status-page')
+  async getCheatStatusData(@Query() params: GetStatusCheatsDto) {
+    try {
+      return this.cheatService.getCheatStatusPageData(params);
     } catch (error) {
       await sendErrorNotification(error);
     }

@@ -8,6 +8,8 @@ import {
   IsOptional,
 } from 'class-validator';
 
+export type CheatVisibility = 'onUpdate' | 'closed' | 'work';
+
 export class CreateCheatDto {
   @IsString() titleEn: string;
   @IsString() titleRu: string;
@@ -33,6 +35,8 @@ export class CreateCheatDto {
   @IsString() instructionEn: string;
   @IsObject() requirments: Record<string, any>;
   @IsNumber() minimumPrice: number;
+  @IsEnum(['onUpdate', 'closed', 'work'])
+  visibility: CheatVisibility;
 }
 
 export class UpdateCheatDto {
@@ -115,6 +119,9 @@ export class UpdateCheatDto {
   @IsNumber()
   @IsOptional()
   minimumPrice?: number;
+
+  @IsEnum(['onUpdate', 'closed', 'work'])
+  visibility: CheatVisibility;
 }
 
 export class ParamsIdDto {
@@ -163,4 +170,15 @@ export class GetCheatsDto {
   @Transform(({ value }) => Number(value))
   @IsNumber()
   page?: number;
+}
+
+export type GetStatusCheatsDtoTypes = 'all' | 'onUpdate' | 'closed' | 'work';
+
+export class GetStatusCheatsDto {
+  @IsOptional()
+  @IsString()
+  search: string;
+
+  @IsEnum(['all', 'onUpdate', 'closed', 'work'])
+  type: GetStatusCheatsDtoTypes;
 }

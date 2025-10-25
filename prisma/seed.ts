@@ -47,7 +47,7 @@ import { guaranteSettings } from './guarante';
 async function main() {
   const result = await prisma.cheat.updateMany({
     data: {
-      requirments: {},
+      visibility: 'work',
     },
   });
 
