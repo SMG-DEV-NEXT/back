@@ -134,7 +134,10 @@ export class CheckoutService {
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
       }
 
-      const finalPrice = Math.round(price * data.count); // рубли * кол-во
+      const finalPrice =
+        data.currency === 'USD'
+          ? Math.round(price * data.count) / data.usd
+          : Math.round(price * data.count); // рубли * кол-во
       // 1. Создаём транзакцию с пометкой "pending"
       // @ts-nocheck
       const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -148,7 +151,10 @@ export class CheckoutService {
           referralId: refOwner ? refOwner.id : null,
           //@ts-ignore
           reseller: isReseller ? isReseller.name : undefined,
-          price: cheat.plan[data.type].price * data.count,
+          price:
+            data.currency === 'USD'
+              ? (cheat.plan[data.type].price * data.count) / data.usd
+              : cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
           promoCode: promoCode?.code,
           count: data.count,

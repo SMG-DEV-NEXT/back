@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsInt, IsEmail, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsEmail,
+  IsIn,
+  IsNumber,
+} from 'class-validator';
 export type CheatType = 'day' | 'week' | 'month';
 
 export class CheckoutDto {
@@ -28,6 +35,9 @@ export class CheckoutDto {
 
   @IsString()
   currency: string;
+
+  @IsNumber()
+  usd: number;
 }
 
 export class CreatePaymentDto {
