@@ -186,7 +186,7 @@ export class CheckoutService {
       console.log('data', data);
       const { MERCHANT_ORDER_ID } = data;
       console.log(MERCHANT_ORDER_ID, 'MERCHANT_ORDER_ID');
-      const transaction = await this.prisma.transaction.findUnique({
+      const transaction = await this.prisma.transaction.findFirst({
         where: { orderId: MERCHANT_ORDER_ID },
       });
       if (!transaction) {
