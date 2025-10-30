@@ -183,6 +183,8 @@ export class CheckoutService {
 
   async handleCallback(data: any) {
     try {
+      console.log('data', data);
+      return 'YES';
       const txId = data.external_id;
       const status = data.status; // должно быть 'succeeded'
 

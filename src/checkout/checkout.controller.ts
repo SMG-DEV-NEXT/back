@@ -60,8 +60,7 @@ export class CheckoutController {
   @Post('/callback')
   @HttpCode(200)
   async paymentCallback(@Body() body: any) {
-    await this.checkoutService.handleCallback(body);
-    return { success: true };
+    return this.checkoutService.handleCallback(body);
   }
 
   @Get('document')
