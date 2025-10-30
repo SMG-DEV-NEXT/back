@@ -183,9 +183,7 @@ export class CheckoutService {
 
   async handleCallback(data: any) {
     try {
-      console.log('data', data);
       const { MERCHANT_ORDER_ID } = data;
-      console.log(MERCHANT_ORDER_ID, 'MERCHANT_ORDER_ID');
       const transaction = await this.prisma.transaction.findFirst({
         where: { orderId: MERCHANT_ORDER_ID },
       });
@@ -273,13 +271,13 @@ export class CheckoutService {
 
   async getTransactionPreview(transactionId: string) {
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id: transactionId },
+      where: { orderId: transactionId },
       include: { cheat: true },
     });
     if (!transaction)
       throw new UnprocessableEntityException('The product already opened');
     await this.prisma.transaction.update({
-      where: { id: transactionId },
+      where: { id: transaction.id },
       data: { isVisited: true },
     });
     if (!transaction.isVisited) return transaction;
