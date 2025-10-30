@@ -84,12 +84,10 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
-    console.log(ip);
     if (!WHITELIST.has(ip)) {
       console.log('hack');
       return res.status(403).send('hack');
     }
-
     return this.checkoutService.handleCallback(body);
   }
 
