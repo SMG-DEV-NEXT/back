@@ -25,6 +25,9 @@ export class CheckoutDto {
   @IsString()
   @IsOptional()
   ref: string;
+
+  @IsString()
+  currency: string;
 }
 
 export class CreatePaymentDto {

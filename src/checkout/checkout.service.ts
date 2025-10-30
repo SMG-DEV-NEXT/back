@@ -163,11 +163,11 @@ export class CheckoutService {
       const signature = crypto
         .createHash('md5')
         .update(
-          `${this.merchantId}:${finalPrice}:${this.secret1}:RUB:${orderId}`,
+          `${this.merchantId}:${finalPrice}:${this.secret1}:${data.currency}:${orderId}`,
         )
         .digest('hex');
 
-      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=RUB&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
+      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
