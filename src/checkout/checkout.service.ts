@@ -184,7 +184,8 @@ export class CheckoutService {
   async handleCallback(data: any) {
     try {
       console.log('data', data);
-      const { MERCHANT_ORDER_ID } = data;
+      const { MERCHANT_ORDER_ID } = data.data;
+      console.log(MERCHANT_ORDER_ID);
       const transaction = await this.prisma.transaction.findUnique({
         where: { orderId: MERCHANT_ORDER_ID },
       });
