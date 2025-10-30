@@ -184,15 +184,14 @@ export class CheckoutService {
   async handleCallback(data: any) {
     try {
       console.log('data', data);
-      return 'YES';
-      const txId = data.external_id;
-      const status = data.status; // должно быть 'succeeded'
-
-      if (status !== 'succeeded') return;
-
+      const { MERCHANT_ORDER_ID } = data;
       const transaction = await this.prisma.transaction.findUnique({
-        where: { id: txId },
+        where: { orderId: MERCHANT_ORDER_ID },
       });
+      if (!transaction) {
+        return 'UNDEFINED';
+      }
+      const txId = transaction.id;
       //@ts-ignore
       if (transaction.promoCode) {
         await this.prisma.promocode.update({
@@ -264,7 +263,9 @@ export class CheckoutService {
         ...transaction,
         codes: checkoutKeyses,
       });
+      return 'YES';
     } catch (error) {
+      return 'ERROR';
       console.log(error);
     }
   }
