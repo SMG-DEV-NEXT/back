@@ -19,7 +19,26 @@ import sendErrorNotification from 'src/utils/sendTGError';
 import * as crypto from 'crypto';
 import { Transaction } from 'mongodb';
 import { generateTransaction } from 'src/utils/generateTransaction';
+const WHITELIST = new Set([
+  '168.119.157.136',
+  '168.119.60.227',
+  '178.154.197.79',
+  '51.250.54.238',
+]);
 
+function getClientIp(req: Request): string {
+  const ipHeader =
+    (req.headers['x-real-ip'] as string) ||
+    (req.headers['x-forwarded-for'] as string) ||
+    req.socket.remoteAddress ||
+    '';
+
+  // Take first IP if multiple, and strip IPv6 prefix (::ffff:)
+  return ipHeader
+    .split(',')[0]
+    .trim()
+    .replace(/^::ffff:/, '');
+}
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
@@ -59,7 +78,18 @@ export class CheckoutController {
 
   @Post('/callback')
   @HttpCode(200)
-  async paymentCallback(@Body() body: any) {
+  async paymentCallback(
+    @Body() body: any,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const ip = getClientIp(req);
+
+    if (!WHITELIST.has(ip)) {
+      console.log('hack');
+      return res.status(403).send('hack');
+    }
+
     return this.checkoutService.handleCallback(body);
   }
 
