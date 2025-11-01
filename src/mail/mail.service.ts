@@ -39,7 +39,7 @@ export class MailService {
   ) {
     try {
       const info = await this.adminTransporter.sendMail({
-        from: process.env.ADMIN_EMAIL,
+        from: 'SMG TEAM <' + process.env.ADMIN_EMAIL + '>',
         to,
         subject,
         text,
@@ -60,7 +60,7 @@ export class MailService {
   ) {
     try {
       const info = await this.noreplyTransporter.sendMail({
-        from: process.env.NOREPLY_EMAIL,
+        from: 'SMG TEAM <' + process.env.NOREPLY_EMAIL + '>',
         to,
         subject,
         text,
