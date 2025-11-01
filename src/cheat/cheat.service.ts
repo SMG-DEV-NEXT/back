@@ -421,10 +421,54 @@ export class CheatService {
 
   async getCheatStatusPageData(filters: GetStatusCheatsDto) {
     const search = filters.search;
+    const catalog = filters.catalog;
+    let data = [];
+    const allCatalogs = await this.prisma.catalog.findMany({
+      where: {
+        type: 'published',
+      },
+      select: {
+        title: true,
+        link: true,
+      },
+    });
     if (filters.type === 'all') {
-      return this.prisma.cheat.findMany({
+      data = await this.prisma.cheat.findMany({
         where: {
           status: 'published',
+          ...(catalog !== 'all'
+            ? { catalog: { link: catalog } } // if catalog exists → filter by link
+            : {}),
+          OR: [
+            { titleEn: { contains: search, mode: 'insensitive' } },
+            { titleRu: { contains: search, mode: 'insensitive' } },
+            { aboutEn: { contains: search, mode: 'insensitive' } },
+            { aboutRu: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          titleEn: true,
+          titleRu: true,
+          updatedAt: true,
+          imageUrl: true,
+          visibility: true,
+          link: true,
+          image1: true,
+          catalog: {
+            select: {
+              link: true,
+            },
+          },
+        },
+      });
+    } else {
+      data = await this.prisma.cheat.findMany({
+        where: {
+          status: 'published',
+          visibility: filters.type,
+          ...(catalog !== 'all'
+            ? { catalog: { link: catalog } } // if catalog exists → filter by link
+            : {}),
           OR: [
             { titleEn: { contains: search, mode: 'insensitive' } },
             { titleRu: { contains: search, mode: 'insensitive' } },
@@ -448,32 +492,6 @@ export class CheatService {
         },
       });
     }
-    return this.prisma.cheat.findMany({
-      where: {
-        status: 'published',
-        visibility: filters.type,
-
-        OR: [
-          { titleEn: { contains: search, mode: 'insensitive' } },
-          { titleRu: { contains: search, mode: 'insensitive' } },
-          { aboutEn: { contains: search, mode: 'insensitive' } },
-          { aboutRu: { contains: search, mode: 'insensitive' } },
-        ],
-      },
-      select: {
-        titleEn: true,
-        titleRu: true,
-        updatedAt: true,
-        imageUrl: true,
-        visibility: true,
-        link: true,
-        image1: true,
-        catalog: {
-          select: {
-            link: true,
-          },
-        },
-      },
-    });
+    return { data, allCatalogs };
   }
 }

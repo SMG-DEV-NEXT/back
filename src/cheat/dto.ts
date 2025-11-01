@@ -181,4 +181,8 @@ export class GetStatusCheatsDto {
 
   @IsEnum(['all', 'onUpdate', 'closed', 'work'])
   type: GetStatusCheatsDtoTypes;
+
+  @IsString()
+  @IsOptional()
+  catalog: string;
 }

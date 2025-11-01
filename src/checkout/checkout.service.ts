@@ -174,12 +174,13 @@ export class CheckoutService {
         )
         .digest('hex');
 
-      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
+      // const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
       // });
-      return payUrl;
+      return '';
+      // return payUrl;
       // return `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`;
       // return response.data.Data.redirectURL;
     } catch (error) {
