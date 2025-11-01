@@ -4,22 +4,57 @@ import sendErrorNotification from 'src/utils/sendTGError';
 
 @Injectable()
 export class MailService {
-  private transporter;
+  constructor() {}
+  private adminTransporter = nodemailer.createTransport({
+    host: 'mail.smgcheats.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.ADMIN_EMAIL,
+      pass: process.env.ADMIN_EMAIL_PASS,
+    },
+  });
 
-  constructor() {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail', // Use your email provider
-      auth: {
-        user: process.env.EMAIL_USER, // Your email
-        pass: process.env.EMAIL_PASS, // App password or actual password
-      },
-    });
+  private noreplyTransporter = nodemailer.createTransport({
+    host: 'mail.smgcheats.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.NOREPLY_EMAIL,
+      pass: process.env.NOREPLY_EMAIL_PASS,
+    },
+  });
+
+  async sendFromAdmin(
+    to: string,
+    subject: string,
+    text: string,
+    html?: string,
+  ) {
+    try {
+      const info = await this.adminTransporter.sendMail({
+        from: process.env.ADMIN_EMAIL,
+        to,
+        subject,
+        text,
+        html,
+      });
+      return info;
+    } catch (error) {
+      console.error('Error sending email:', error);
+      await sendErrorNotification(error);
+    }
   }
 
-  async sendMail(to: string, subject: string, text: string, html?: string) {
+  async sendFromNoreply(
+    to: string,
+    subject: string,
+    text: string,
+    html?: string,
+  ) {
     try {
-      const info = await this.transporter.sendMail({
-        from: process.env.MAIL_USER, // Sender email
+      const info = await this.noreplyTransporter.sendMail({
+        from: process.env.NOREPLY_EMAIL,
         to,
         subject,
         text,

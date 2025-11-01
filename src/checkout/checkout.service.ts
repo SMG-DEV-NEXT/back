@@ -5,16 +5,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { CheckoutDto, CreatePaymentDto } from './dto';
+import { CheckoutDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { count } from 'console';
-import { SmtpService } from 'src/smtp/smtp.service';
 import { Transaction, User } from '@prisma/client';
 import { generatorAfterCheckoutMail } from 'src/mail/generator';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
-import * as moment from 'moment-timezone';
-import axios from 'axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 
@@ -22,7 +18,6 @@ import * as crypto from 'crypto';
 export class CheckoutService {
   constructor(
     private prisma: PrismaService,
-    private smtpService: SmtpService,
     private mail: MailService,
     private readonly httpService: HttpService,
   ) {}
@@ -66,7 +61,7 @@ export class CheckoutService {
   async sendMail(transaction: Transaction) {
     try {
       const html = generatorAfterCheckoutMail(transaction);
-      this.mail.sendMail(
+      this.mail.sendFromAdmin(
         transaction.email,
         transaction.userLanguage === 'en' ? 'Checkout Email' : 'Чек-аут Email',
         null,
@@ -174,13 +169,12 @@ export class CheckoutService {
         )
         .digest('hex');
 
-      // const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
+      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
       // });
-      return '';
-      // return payUrl;
+      return payUrl;
       // return `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`;
       // return response.data.Data.redirectURL;
     } catch (error) {

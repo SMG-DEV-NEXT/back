@@ -12,7 +12,6 @@ import { SettingsModule } from './settings/settings.module';
 import { ResellerModule } from './reseller/reseller.module';
 import { ContactModule } from './contact/contact.module';
 import { PromocodeModule } from './promocode/promocode.module';
-import { SmtpModule } from './smtp/smtp.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { FaqModule } from './faq/faq.module';
 import { StatisticModule } from './statistic/statistic.module';
@@ -33,7 +32,6 @@ import { TokenModule } from './token/token.module';
     ResellerModule,
     ContactModule,
     PromocodeModule,
-    SmtpModule,
     CheckoutModule,
     FaqModule,
     StatisticModule,

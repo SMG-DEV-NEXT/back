@@ -60,7 +60,7 @@ export class AuthService {
       },
     });
     const authToken = await this.tokenService.createToken(user.id);
-    await this.mailer.sendMail(
+    await this.mailer.sendFromNoreply(
       user.email,
       lang === 'ru' ? 'Подтверждение регистрации' : 'Registration Confirmation',
       null,
@@ -83,7 +83,7 @@ export class AuthService {
       throw new BadRequestException('user_not_found');
     }
     const authToken = await this.tokenService.findTokenByUserId(user.id);
-    await this.mailer.sendMail(
+    await this.mailer.sendFromNoreply(
       user.email,
       lang === 'ru' ? 'Подтверждение регистрации' : 'Registration Confirmation',
       null,
@@ -266,7 +266,7 @@ export class AuthService {
       where: { email },
       data: { resetCode: `${code}` },
     });
-    await this.mailer.sendMail(
+    await this.mailer.sendFromNoreply(
       email,
       'Reset Your Password',
       null,
