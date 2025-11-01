@@ -221,6 +221,7 @@ model Transaction {
   referral     Referral?     @relation("ReferralTransactions", fields: [referralId], references: [id])
   userLanguage  String? @default("ru")
   orderId    String?
+  currency   String?
 }
 
 model FaqBlock {

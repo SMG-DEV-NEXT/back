@@ -141,9 +141,40 @@ export class CheckoutService {
       // 1. Создаём транзакцию с пометкой "pending"
       // @ts-nocheck
       const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const transaction = await this.prisma.transaction.create({
+        data: {
+          email: data.email,
+          userId: user?.id || null,
+          cheatId: data.itemId,
+          type: data.type,
+          codes: [],
+          referralId: refOwner ? refOwner.id : null,
+          //@ts-ignore
+          reseller: isReseller ? isReseller.name : undefined,
+          price:
+            data.currency === 'USD'
+              ? (cheat.plan[data.type].price * data.count) / data.usd
+              : cheat.plan[data.type].price * data.count,
+          checkoutedPrice: finalPrice,
+          promoCode: promoCode?.code,
+          count: data.count,
+          ip,
+          // @ts-ignore
+          status: 'pending',
+          userLanguage: data.locale,
+          orderId,
+          currency: data.currency,
+        },
+      });
+      // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
+      const signature = crypto
+        .createHash('md5')
+        .update(
+          `${this.merchantId}:${finalPrice}:${this.secret1}:${data.currency}:${orderId}`,
+        )
+        .digest('hex');
 
-      // const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
-      const payUrl = ``;
+      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
