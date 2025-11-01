@@ -64,7 +64,7 @@ export const generateForgetPasswordMail = (code: string, lang: string) => {
 function calculatePercentageDifference(original, newNumber) {
   const difference = original - newNumber;
   const percent = (difference / original) * 100;
-  return percent;
+  return percent.toFixed();
 }
 
 export const generatorAfterCheckoutMail = (transaction: Transaction) => {
