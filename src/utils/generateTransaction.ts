@@ -10,7 +10,7 @@ export const generateTransaction = (
   Purchase Confirmation
 ==============================
 
-Transaction ID:   ${transaction.id}
+Transaction ID:   ${transaction.orderId}
 Buyer Email:      ${transaction.email}
 Date:             ${dateStr}
 Cheat:            ${transaction.cheat[`title${locale === 'ru' ? 'Ru' : 'En'}`]},
