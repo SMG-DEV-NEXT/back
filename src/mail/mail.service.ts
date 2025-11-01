@@ -13,6 +13,9 @@ export class MailService {
       user: process.env.ADMIN_EMAIL,
       pass: process.env.ADMIN_EMAIL_PASS,
     },
+    tls: {
+      rejectUnauthorized: false, // ⛔ temporary workaround only
+    },
   });
 
   private noreplyTransporter = nodemailer.createTransport({
@@ -22,6 +25,9 @@ export class MailService {
     auth: {
       user: process.env.NOREPLY_EMAIL,
       pass: process.env.NOREPLY_EMAIL_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false, // ⛔ temporary workaround only
     },
   });
 
