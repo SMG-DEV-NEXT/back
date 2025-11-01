@@ -122,11 +122,11 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                   </tr>
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Base price' : 'Базовая цена'}:</td>
-                    <td>${transaction.price}</td>
+                    <td>${transaction.currency === 'USD' ? `$${Number(transaction.price).toFixed(2)}` : `${transaction.price} ₽`}</td>
                   </tr>
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Price after discount' : 'Цена после скидки'}:</td>
-                    <td>${transaction.checkoutedPrice}</td>
+                    <td>${transaction.currency === 'USD' ? `$${Number(transaction.checkoutedPrice).toFixed(2)}` : `${transaction.checkoutedPrice} ₽`}</td>
                   </tr>
                 </table>
               </td>
