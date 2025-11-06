@@ -9,15 +9,15 @@ export class PlanService {
   // Create a new plan
   async create(createPlanDto: CreatePlanDto) {
     const periodDay = await this.prisma.period.create({
-      data: { keys: [], price: 10, prcent: 5 },
+      data: { keys: [], price: 0, prcent: 0 },
     });
 
     const periodWeek = await this.prisma.period.create({
-      data: { keys: [], price: 50, prcent: 10 },
+      data: { keys: [], price: 0, prcent: 0 },
     });
 
     const periodMonth = await this.prisma.period.create({
-      data: { keys: [], price: 150, prcent: 15 },
+      data: { keys: [], price: 0, prcent: 0 },
     });
 
     return this.prisma.plan.create({
@@ -59,6 +59,12 @@ export class PlanService {
         day: true,
         week: true,
         month: true,
+        cheat: {
+          select: {
+            titleRu: true,
+            titleEn: true,
+          },
+        },
       },
     });
   }
