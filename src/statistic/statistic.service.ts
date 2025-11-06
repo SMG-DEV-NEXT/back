@@ -77,18 +77,18 @@ export class StatisticService {
 
   private async getTotalSales() {
     const totalResult = await this.prisma.transaction.aggregate({
-      _sum: { checkoutedPrice: true },
+      _sum: { realPrice: true },
     });
 
     const lastWeekResult = await this.prisma.transaction.aggregate({
-      _sum: { checkoutedPrice: true },
+      _sum: { realPrice: true },
       where: {
         createdAt: { gte: dayjs().subtract(7, 'days').toDate() },
       },
     });
 
     const previousWeekResult = await this.prisma.transaction.aggregate({
-      _sum: { checkoutedPrice: true },
+      _sum: { realPrice: true },
       where: {
         type: 'KEY_PURCHASE',
         createdAt: {
@@ -98,9 +98,9 @@ export class StatisticService {
       },
     });
 
-    const total = totalResult._sum.checkoutedPrice || 0;
-    const lastWeek = lastWeekResult._sum.checkoutedPrice || 0;
-    const previousWeek = previousWeekResult._sum.checkoutedPrice || 0;
+    const total = totalResult._sum.realPrice || 0;
+    const lastWeek = lastWeekResult._sum.realPrice || 0;
+    const previousWeek = previousWeekResult._sum.realPrice || 0;
 
     const percentChange = this.getPercentChange(lastWeek, previousWeek);
 
@@ -171,7 +171,7 @@ export class StatisticService {
     for (const tx of sales) {
       const dayIndex =
         dayjs(tx.createdAt).diff(dayjs().startOf('day'), 'day') + 6;
-      if (dayIndex >= 0 && dayIndex < 7) days[dayIndex] += tx.checkoutedPrice;
+      if (dayIndex >= 0 && dayIndex < 7) days[dayIndex] += tx.realPrice;
     }
 
     return days.map((n) => +n.toFixed(2));
@@ -199,7 +199,7 @@ export class StatisticService {
         },
       },
       select: {
-        checkoutedPrice: true,
+        realPrice: true,
         createdAt: true,
       },
     });
@@ -210,7 +210,7 @@ export class StatisticService {
     result.forEach((tx) => {
       const index = dayjs(tx.createdAt).diff(startDate, 'day');
       if (index >= 0 && index <= diffDays) {
-        dailyRevenue[index] += tx.checkoutedPrice;
+        dailyRevenue[index] += tx.realPrice;
       }
     });
 

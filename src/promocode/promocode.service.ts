@@ -41,8 +41,12 @@ export class PromocodeService {
     const promo = await this.prisma.promocode.findFirst({
       where: { code },
     });
-    if (promo?.count >= promo?.maxActivate || promo?.status === 'inactive') {
-      return null;
+    if (
+      !promo ||
+      promo?.count >= promo?.maxActivate ||
+      promo?.status === 'inactive'
+    ) {
+      return { valid: false };
     }
     return promo;
   }

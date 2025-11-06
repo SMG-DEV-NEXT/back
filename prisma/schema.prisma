@@ -222,6 +222,7 @@ model Transaction {
   userLanguage  String? @default("ru")
   orderId    String?
   currency   String?
+  realPrice  Float
 }
 
 model FaqBlock {

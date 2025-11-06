@@ -159,6 +159,7 @@ export class CheckoutService {
           userLanguage: data.locale,
           orderId,
           currency: data.currency,
+          realPrice: Math.round(price * data.count),
         },
       });
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
@@ -168,6 +169,14 @@ export class CheckoutService {
           `${this.merchantId}:${finalPrice}:${this.secret1}:${data.currency}:${orderId}`,
         )
         .digest('hex');
+      if (process.env.FRONT_URL === 'http://localhost:3000') {
+        console.log('Development mode: Overriding payUrl to localhost');
+        await this.handleCallback({
+          MERCHANT_ORDER_ID: orderId,
+        });
+        const payUrl = `http://localhost:3000/${data.locale}/preview/${orderId}`;
+        return payUrl;
+      }
       const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
       // await this.handleCallback({
       //   status: 'succeeded',

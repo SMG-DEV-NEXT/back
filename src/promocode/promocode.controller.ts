@@ -74,6 +74,7 @@ export class PromocodeController {
     try {
       return this.service.check(code);
     } catch (error) {
+      console.log(error);
       await sendErrorNotification(error);
     }
   }

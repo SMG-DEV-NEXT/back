@@ -220,7 +220,7 @@ export class AuthController {
   @Post('/forget-reset')
   async forgetStep3(@Body() forgetDto: ForgetDtoStep3, @Res() res: Response) {
     try {
-      await this.authService.forgetStep2(forgetDto.password, forgetDto.email);
+      await this.authService.forgetStep3(forgetDto.password, forgetDto.email);
       return res.status(200).send(true);
     } catch (error) {
       return res.status(400).send(error);
