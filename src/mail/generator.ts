@@ -106,7 +106,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                 <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:20px; font-size:15px; color:#E9E3F6;">
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold; width:150px;">${lang === 'en' ? 'Order number' : 'Номер заказа'}:</td>
-                    <td>${transaction.id}</td>
+                    <td>${transaction.orderId}</td>
                   </tr>
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Purchase date' : 'Дата покупки'}:</td>
