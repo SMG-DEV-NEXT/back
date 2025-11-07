@@ -15,6 +15,7 @@ export class CheatService {
     id: true,
     price: true,
     prcent: true,
+    keys: true,
   };
   constructor(
     private prisma: PrismaService,
@@ -337,6 +338,9 @@ export class CheatService {
               day: {
                 select: this.fields,
               },
+              week: {
+                select: this.fields,
+              },
               month: {
                 select: this.fields,
               },
@@ -349,7 +353,32 @@ export class CheatService {
       }),
       this.prisma.catalog.findFirst({ where: { link: dto.catalogId } }),
     ]);
-    let cheats = [...data];
+    let cheats = data.map((cheat) => ({
+      ...cheat,
+      plan: cheat.plan
+        ? {
+            ...cheat.plan,
+            day: {
+              id: cheat.plan.day?.id,
+              price: cheat.plan.day?.price,
+              prcent: cheat.plan.day?.prcent,
+              keysCount: cheat.plan.day?.keys?.length || 0,
+            },
+            week: {
+              id: cheat.plan.week?.id,
+              price: cheat.plan.week?.price,
+              prcent: cheat.plan.week?.prcent,
+              keysCount: cheat.plan.week?.keys?.length || 0,
+            },
+            month: {
+              id: cheat.plan.month?.id,
+              price: cheat.plan.month?.price,
+              prcent: cheat.plan.month?.prcent,
+              keysCount: cheat.plan.month?.keys?.length || 0,
+            },
+          }
+        : null,
+    }));
 
     // sorting
 

@@ -110,7 +110,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                   </tr>
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Purchase date' : 'Дата покупки'}:</td>
-                    <td>${moment(transaction.createdAt).format('D MMMM, YYYY')}</td>
+                    <td>${moment(transaction.createdAt).format('HH:mm D MMMM, YYYY')}</td>
                   </tr>
                   <tr>
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Customer email' : 'Email покупателя'}:</td>

@@ -14,6 +14,7 @@ export class CatalogService {
     id: true,
     price: true,
     prcent: true,
+    keys: true,
   };
   constructor(private prisma: PrismaService) {}
 
@@ -213,12 +214,39 @@ export class CatalogService {
         },
       }),
     ]);
-
+    const CatalogData = [...data].map((catalog) => {
+      return {
+        ...catalog,
+        cheats: catalog.cheats.map((cheat) => ({
+          ...cheat,
+          plan: {
+            day: {
+              id: cheat.plan.day?.id,
+              price: cheat.plan.day?.price,
+              prcent: cheat.plan.day?.prcent,
+              keysCount: cheat.plan.day?.keys?.length,
+            },
+            week: {
+              id: cheat.plan.week?.id,
+              price: cheat.plan.week?.price,
+              prcent: cheat.plan.week?.prcent,
+              keysCount: cheat.plan.week?.keys?.length,
+            },
+            month: {
+              id: cheat.plan.month?.id,
+              price: cheat.plan.month?.price,
+              prcent: cheat.plan.month?.prcent,
+              keysCount: cheat.plan.month?.keys?.length,
+            },
+          },
+        })),
+      };
+    });
     return {
       total: Math.ceil(total / limit),
       page,
       limit,
-      data,
+      data: CatalogData,
     };
   }
 
@@ -232,7 +260,7 @@ export class CatalogService {
   }
 
   async getTopCatalogs() {
-    return this.prisma.cheat.findMany({
+    const data = await this.prisma.cheat.findMany({
       take: 6,
       orderBy: {
         position: 'asc',
@@ -274,5 +302,29 @@ export class CatalogService {
         // },
       },
     });
+    const cheats = [...data].map((cheat) => ({
+      ...cheat,
+      plan: {
+        day: {
+          id: cheat.plan.day?.id,
+          price: cheat.plan.day?.price,
+          prcent: cheat.plan.day?.prcent,
+          keysCount: cheat.plan.day?.keys?.length,
+        },
+        week: {
+          id: cheat.plan.week?.id,
+          price: cheat.plan.week?.price,
+          prcent: cheat.plan.week?.prcent,
+          keysCount: cheat.plan.week?.keys?.length,
+        },
+        month: {
+          id: cheat.plan.month?.id,
+          price: cheat.plan.month?.price,
+          prcent: cheat.plan.month?.prcent,
+          keysCount: cheat.plan.month?.keys?.length,
+        },
+      },
+    }));
+    return cheats;
   }
 }

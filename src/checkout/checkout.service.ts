@@ -174,7 +174,7 @@ export class CheckoutService {
         await this.handleCallback({
           MERCHANT_ORDER_ID: orderId,
         });
-        const payUrl = `http://localhost:3000/${data.locale}/preview/${orderId}`;
+        const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
         return payUrl;
       }
       const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
