@@ -79,10 +79,6 @@ export class CheckoutService {
     currency: string = 'RUB',
     email: string,
   ) {
-    const i = parseInt(
-      crypto.createHash('md5').update(orderId).digest('hex').slice(0, 10),
-      16,
-    );
     const data = {
       shopId: Number(process.env.FK_SHOP_ID),
       apiKey: process.env.FK_API_KEY,
