@@ -81,16 +81,14 @@ export class CheckoutService {
   ) {
     const data = {
       shopId: Number(process.env.FK_SHOP_ID),
-      apiKey: process.env.FK_API_KEY,
       paymentId: orderId,
       amount: amount,
-      currency: 'RUB',
+      currency,
       description: 'Покупка товара',
       nonce: Date.now(),
       email,
-      i: Number(process.env.FK_SHOP_ID),
+      i: 44,
     };
-    console.log(data);
 
     // 1️⃣ Сортируем ключи
     const sortedKeys = Object.keys(data).sort();
@@ -107,9 +105,9 @@ export class CheckoutService {
       ...data,
       signature,
     });
-
+    console.log(response);
     // 4️⃣ Получаем ссылку на оплату
-    const payUrl = response.data?.data?.payment_url;
+    const payUrl = response.data?.location;
     return payUrl;
   }
 
@@ -218,6 +216,7 @@ export class CheckoutService {
         data.currency,
         transaction.email,
       );
+      console.log(payUrl);
 
       // await this.handleCallback({
       //   status: 'succeeded',
