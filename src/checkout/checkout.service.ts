@@ -13,6 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
+import axios from 'axios';
 
 @Injectable()
 export class CheckoutService {
@@ -70,6 +71,50 @@ export class CheckoutService {
     } catch (error) {
       console.log(error);
     }
+  }
+
+  async createPayment(
+    orderId: string,
+    amount: number,
+    currency: string = 'RUB',
+    email: string,
+  ) {
+    const i = parseInt(
+      crypto.createHash('md5').update(orderId).digest('hex').slice(0, 10),
+      16,
+    );
+    const data = {
+      shopId: Number(process.env.FK_SHOP_ID),
+      apiKey: process.env.FK_API_KEY,
+      paymentId: orderId,
+      amount: amount,
+      currency: 'RUB',
+      description: 'Покупка товара',
+      nonce: Date.now(),
+      email,
+      i: Number(process.env.FK_SHOP_ID),
+    };
+    console.log(data);
+
+    // 1️⃣ Сортируем ключи
+    const sortedKeys = Object.keys(data).sort();
+    const signString = sortedKeys.map((k) => data[k]).join('|');
+
+    // 2️⃣ Генерируем подпись HMAC-SHA256
+    const signature = crypto
+      .createHmac('sha256', process.env.FK_API_KEY)
+      .update(signString)
+      .digest('hex');
+
+    // 3️⃣ Отправляем POST запрос
+    const response = await axios.post('https://api.fk.life/v1/orders/create', {
+      ...data,
+      signature,
+    });
+
+    // 4️⃣ Получаем ссылку на оплату
+    const payUrl = response.data?.data?.payment_url;
+    return payUrl;
   }
 
   async initiatePayment(
@@ -163,21 +208,21 @@ export class CheckoutService {
         },
       });
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      const signature = crypto
-        .createHash('md5')
-        .update(
-          `${this.merchantId}:${finalPrice}:${this.secret1}:${data.currency}:${orderId}`,
-        )
-        .digest('hex');
-      if (process.env.FRONT_URL === 'http://localhost:3000') {
-        console.log('Development mode: Overriding payUrl to localhost');
-        await this.handleCallback({
-          MERCHANT_ORDER_ID: orderId,
-        });
-        const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
-        return payUrl;
-      }
-      const payUrl = `https://pay.fk.money?m=${this.merchantId}&oa=${finalPrice}&i=&currency=${data.currency}&em=&phone=&o=${orderId}&pay=PAY&s=${signature}`;
+      // if (process.env.FRONT_URL === 'http://localhost:3000') {
+      //   console.log('Development mode: Overriding payUrl to localhost');
+      //   await this.handleCallback({
+      //     MERCHANT_ORDER_ID: orderId,
+      //   });
+      //   const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
+      //   return payUrl;
+      // }
+      const payUrl = await this.createPayment(
+        orderId,
+        finalPrice,
+        data.currency,
+        transaction.email,
+      );
+
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
