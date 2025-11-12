@@ -19,6 +19,9 @@ export class UpdateStatDto {
   @IsOptional()
   @IsJSON()
   data?: any;
+
+  @IsString()
+  url?: string;
 }
 
 export class CreateStatDto {
@@ -34,6 +37,9 @@ export class CreateStatDto {
   @IsOptional()
   @IsJSON()
   data?: any;
+
+  @IsString()
+  url?: string;
 }
 
 export class UpdateBlockDto {

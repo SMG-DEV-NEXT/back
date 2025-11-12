@@ -41,6 +41,7 @@ export class FaqService {
         type: dto.type,
         content: dto.content,
         data: dto.data,
+        url: dto.url,
       },
     });
   }
