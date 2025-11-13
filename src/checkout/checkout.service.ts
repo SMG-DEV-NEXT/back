@@ -78,6 +78,7 @@ export class CheckoutService {
     amount: number,
     currency: string = 'RUB',
     email: string,
+    variantPay: number,
   ) {
     const data = {
       shopId: Number(process.env.FK_SHOP_ID),
@@ -87,7 +88,7 @@ export class CheckoutService {
       description: 'Покупка товара',
       nonce: Date.now(),
       email,
-      i: 44,
+      i: Number(variantPay),
     };
 
     // 1️⃣ Сортируем ключи
@@ -105,7 +106,6 @@ export class CheckoutService {
       ...data,
       signature,
     });
-    console.log(response);
     // 4️⃣ Получаем ссылку на оплату
     const payUrl = response.data?.location;
     return payUrl;
@@ -115,7 +115,7 @@ export class CheckoutService {
     data: CheckoutDto,
     ip: string,
     user: User,
-  ): Promise<string> {
+  ): Promise<any> {
     try {
       const ref = data.ref;
       let refOwner = null;
@@ -215,9 +215,8 @@ export class CheckoutService {
         finalPrice,
         data.currency,
         transaction.email,
+        data.variantPay,
       );
-      console.log(payUrl);
-
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
@@ -226,7 +225,13 @@ export class CheckoutService {
       // return `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`;
       // return response.data.Data.redirectURL;
     } catch (error) {
-      console.log(error);
+      if (
+        error?.response &&
+        error.response?.data &&
+        error.response.data?.error
+      ) {
+        return { error: error.response.data?.error };
+      }
       throw new BadGatewayException(error);
     }
   }
@@ -234,6 +239,7 @@ export class CheckoutService {
   async handleCallback(data: any) {
     try {
       const { MERCHANT_ORDER_ID } = data;
+      console.log(data);
       const transaction = await this.prisma.transaction.findFirst({
         where: { orderId: MERCHANT_ORDER_ID },
       });
@@ -334,10 +340,16 @@ export class CheckoutService {
     return null;
   }
 
-  async getTransactionsClient(userId: string, page: number, limit: number) {
+  async getTransactionsClient(
+    userId: string,
+    page: number,
+    limit: number,
+    email: string,
+  ) {
     const transactions = await this.prisma.transaction.findMany({
       where: {
-        userId,
+        OR: [{ userId }, { email }],
+        status: 'success',
       },
       skip: (page - 1) * limit,
       take: limit,
@@ -357,7 +369,12 @@ export class CheckoutService {
       },
     });
 
-    const total = await this.prisma.transaction.count({ where: { userId } });
+    const total = await this.prisma.transaction.count({
+      where: {
+        OR: [{ userId }, { email }],
+        status: 'success',
+      },
+    });
     return {
       data: transactions,
       total,

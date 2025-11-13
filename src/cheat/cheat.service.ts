@@ -123,7 +123,11 @@ export class CheatService {
       include: {
         comments: {
           include: {
-            user: true,
+            user: {
+              select: {
+                email: true,
+              },
+            },
           },
         },
         plan: {
@@ -167,7 +171,7 @@ export class CheatService {
       const commentAccess = await this.prisma.transaction.findFirst({
         where: {
           cheatId: cheat.id,
-          userId: user.id,
+          OR: [{ userId: user.id }, { email: user.email }],
         },
       });
       return {

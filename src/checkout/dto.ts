@@ -38,6 +38,9 @@ export class CheckoutDto {
 
   @IsNumber()
   usd: number;
+
+  @IsNumber()
+  variantPay: number;
 }
 
 export class CreatePaymentDto {

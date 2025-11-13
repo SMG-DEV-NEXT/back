@@ -70,6 +70,7 @@ export class CheckoutController {
         user.id,
         pageNumber,
         pageSize,
+        user.email,
       );
     } catch (error) {
       await sendErrorNotification(error);
