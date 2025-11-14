@@ -45,13 +45,12 @@ import { guaranteSettings } from './guarante';
 // }
 
 async function main() {
-  const result = await prisma.faqStat.updateMany({
+  const result = await prisma.setting.create({
     data: {
-      url: 'work',
+      title: 'usd',
+      settings: 80.85,
     },
   });
-
-  console.log(`✅ Cleared requirments for ${result.count} faqStats`);
 }
 main()
   .catch((e) => {
