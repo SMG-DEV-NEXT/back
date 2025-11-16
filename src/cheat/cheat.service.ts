@@ -420,21 +420,26 @@ export class CheatService {
       );
     }
     // max and min price info
-    const prices = [];
-    const SortingDataForLimits = data.sort(
-      (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
-    );
-    prices.push(SortingDataForLimits[0]?.plan?.day?.price || 0);
-    prices.push(SortingDataForLimits.at(-1)?.plan?.day?.price || 0);
-    prices.sort((a, b) => a - b);
+    const prices = new Set<number>();
+    data.forEach((cheat) => {
+      const {
+        plan: { day, month, week },
+      } = cheat;
+      if (day.keys.length > 0) prices.add(day.price);
+      if (week.keys.length > 0) prices.add(week.price);
+      if (month.keys.length > 0) prices.add(month.price);
+    });
+    const SortingDataForLimits = [...prices].sort((a, b) => a - b);
+    const minPrice = SortingDataForLimits[0];
+    const maxPrice = SortingDataForLimits[SortingDataForLimits.length - 1];
     const allCheats = cheats.slice(skip, skip + limit); // for pagination
     return {
       total: Math.ceil(cheats.length / limit),
       page,
       limit,
       data: allCheats,
-      lowPrice: prices[0],
-      maxPrice: prices[1],
+      lowPrice: minPrice,
+      maxPrice: maxPrice,
       hideFilterBar: data.length < 2,
       catalog,
     };

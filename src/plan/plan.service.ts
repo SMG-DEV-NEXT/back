@@ -78,7 +78,7 @@ export class PlanService {
       await this.prisma.period.update({
         where: { id: day.id },
         data: {
-          keys: day.keys,
+          keys: day.keys.filter((e) => e.length > 0),
           prcent: day.prcent,
           price: day.price,
         },
@@ -86,7 +86,7 @@ export class PlanService {
       await this.prisma.period.update({
         where: { id: week.id },
         data: {
-          keys: week.keys,
+          keys: week.keys.filter((e) => e.length > 0),
           prcent: week.prcent,
           price: week.price,
         },
@@ -94,7 +94,7 @@ export class PlanService {
       await this.prisma.period.update({
         where: { id: month.id },
         data: {
-          keys: month.keys,
+          keys: month.keys.filter((e) => e.length > 0),
           prcent: month.prcent,
           price: month.price,
         },
