@@ -14,6 +14,7 @@ import { HttpService } from '@nestjs/axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
+import * as FormData from 'form-data';
 
 @Injectable()
 export class CheckoutService {
@@ -22,43 +23,6 @@ export class CheckoutService {
     private mail: MailService,
     private readonly httpService: HttpService,
   ) {}
-  private merchantId = process.env.FREEKASSA_MERCHANT_ID;
-  private secret1 = process.env.FREEKASSA_SECRET_1;
-  private secret2 = process.env.FREEKASSA_SECRET_2;
-
-  // TOCHKA
-  private async getAccessToken(): Promise<string> {
-    try {
-      console.log(
-        process.env.TOCHKA_CLIENT_ID,
-        process.env.TOCHKA_CLIENT_SECRET,
-      );
-      const data = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: process.env.TOCHKA_CLIENT_ID,
-        client_secret: process.env.TOCHKA_CLIENT_SECRET,
-        scope: 'payments', // 👈 не забудь про scope!
-      });
-
-      const response = await firstValueFrom(
-        this.httpService.post(
-          'https://enter.tochka.com/connect/token',
-          data.toString(), // обязательно .toString()!
-          {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-          },
-        ),
-      );
-
-      return response.data.access_token;
-    } catch (error) {
-      console.log(error);
-      throw new BadGatewayException(error);
-    }
-  }
-
   async sendMail(transaction: Transaction) {
     try {
       const html = generatorAfterCheckoutMail(transaction);
@@ -73,7 +37,7 @@ export class CheckoutService {
     }
   }
 
-  async createPayment(
+  async createPaymentFk(
     orderId: string,
     amount: number,
     currency: string = 'RUB',
@@ -90,8 +54,6 @@ export class CheckoutService {
       email,
       i: Number(variantPay),
     };
-
-    // 1️⃣ Сортируем ключи
     const sortedKeys = Object.keys(data).sort();
     const signString = sortedKeys.map((k) => data[k]).join('|');
 
@@ -109,6 +71,30 @@ export class CheckoutService {
     // 4️⃣ Получаем ссылку на оплату
     const payUrl = response.data?.location;
     return payUrl;
+  }
+
+  async createBill({ amount, orderId, currency }) {
+    const form = new FormData();
+    form.append('amount', amount);
+    form.append('order_id', orderId);
+    form.append('description', 'Покупка товара');
+    form.append('type', 'normal');
+    form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
+    form.append('currency_in', currency);
+    form.append('custom', '');
+    form.append('payer_pays_commission', '1');
+    form.append('name', 'Платёж');
+
+    const url = 'https://pal24.pro/api/v1/bill/create';
+
+    const response = await axios.post(url, form, {
+      headers: {
+        Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
+        ...form.getHeaders(), // IMPORTANT!
+      },
+    });
+
+    return response.data.link_page_url;
   }
 
   async initiatePayment(
@@ -199,6 +185,7 @@ export class CheckoutService {
           orderId,
           currency: data.currency,
           realPrice: Math.round(price * data.count),
+          methodPay: data.methodPay,
         },
       });
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
@@ -210,21 +197,34 @@ export class CheckoutService {
       //   const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
       //   return payUrl;
       // }
-      const payUrl = await this.createPayment(
-        orderId,
-        finalPrice,
-        data.currency,
-        transaction.email,
-        data.variantPay,
-      );
+      let payUrl = '';
+      switch (data.methodPay) {
+        case 'fk':
+          payUrl = await this.createPaymentFk(
+            orderId,
+            finalPrice,
+            data.currency,
+            transaction.email,
+            data.variantPay,
+          );
+          break;
+        case 'pally':
+          payUrl = await this.createBill({
+            amount: finalPrice,
+            orderId,
+            currency: data.currency,
+          });
+          break;
+      }
       // await this.handleCallback({
       //   status: 'succeeded',
       //   external_id: transaction.id,
       // });
-      return payUrl;
       // return `${process.env.FRONT_URL}/${data.locale}/preview/${transaction.id}`;
       // return response.data.Data.redirectURL;
+      return payUrl;
     } catch (error) {
+      console.log(error);
       if (
         error?.response &&
         error.response?.data &&
@@ -238,13 +238,19 @@ export class CheckoutService {
 
   async handleCallback(data: any) {
     try {
-      const { MERCHANT_ORDER_ID } = data;
-      console.log(data);
-      const transaction = await this.prisma.transaction.findFirst({
-        where: { orderId: MERCHANT_ORDER_ID },
-      });
+      const { MERCHANT_ORDER_ID, InvId, Status } = data;
+      let transaction;
+      if (InvId && Status === 'SUCCESS') {
+        transaction = await this.prisma.transaction.findFirst({
+          where: { orderId: InvId },
+        });
+      } else if (MERCHANT_ORDER_ID) {
+        transaction = await this.prisma.transaction.findFirst({
+          where: { orderId: MERCHANT_ORDER_ID },
+        });
+      }
       if (!transaction) {
-        return 'UNDEFINED';
+        throw new NotFoundException('Transaction not found');
       }
       const txId = transaction.id;
       //@ts-ignore
@@ -320,8 +326,7 @@ export class CheckoutService {
       });
       return 'YES';
     } catch (error) {
-      return 'ERROR';
-      console.log(error);
+      throw new BadGatewayException(error);
     }
   }
 

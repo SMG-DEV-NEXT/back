@@ -40,7 +40,11 @@ export class CheckoutDto {
   usd: number;
 
   @IsNumber()
+  @IsOptional()
   variantPay: number;
+
+  @IsString()
+  methodPay: string;
 }
 
 export class CreatePaymentDto {

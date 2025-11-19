@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CheckoutService } from './checkout.service';
-import { CheckoutDto, CreatePaymentDto } from './dto';
+import { CheckoutDto } from './dto';
 import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
@@ -85,10 +85,10 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
-    if (!WHITELIST.has(ip)) {
-      console.log('hack');
-      return res.status(403).send('hack');
-    }
+    // if (!WHITELIST.has(ip)) {
+    //   console.log('hack');
+    //   return res.status(403).send('hack');
+    // }
     return this.checkoutService.handleCallback(body);
   }
 

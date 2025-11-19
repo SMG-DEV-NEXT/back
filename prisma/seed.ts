@@ -45,10 +45,10 @@ import { guaranteSettings } from './guarante';
 // }
 
 async function main() {
-  const result = await prisma.setting.create({
+  const result = await prisma.transaction.updateMany({
+    where: {},
     data: {
-      title: 'usd',
-      settings: 80.85,
+      methodPay: 'fk',
     },
   });
 }

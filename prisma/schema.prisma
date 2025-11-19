@@ -223,6 +223,7 @@ model Transaction {
   orderId    String?
   currency   String?
   realPrice  Float
+  methodPay  String
 }
 
 model FaqBlock {
