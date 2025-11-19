@@ -303,7 +303,6 @@ export class AuthService {
       throw new UnauthorizedException('email_not_found');
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log(hashedPassword, password);
     await this.prisma.user.update({
       where: { email },
       data: { password: hashedPassword },

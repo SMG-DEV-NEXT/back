@@ -74,27 +74,31 @@ export class CheckoutService {
   }
 
   async createBill({ amount, orderId, currency }) {
-    const form = new FormData();
-    form.append('amount', amount);
-    form.append('order_id', orderId);
-    form.append('description', 'Покупка товара');
-    form.append('type', 'normal');
-    form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
-    form.append('currency_in', currency);
-    form.append('custom', '');
-    form.append('payer_pays_commission', '1');
-    form.append('name', 'Платёж');
+    try {
+      const form = new FormData();
+      form.append('amount', amount);
+      form.append('order_id', orderId);
+      form.append('description', 'Покупка товара');
+      form.append('type', 'normal');
+      form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
+      form.append('currency_in', currency);
+      form.append('custom', '');
+      form.append('payer_pays_commission', '1');
+      form.append('name', 'Платёж');
 
-    const url = 'https://pal24.pro/api/v1/bill/create';
+      const url = 'https://pal24.pro/api/v1/bill/create';
 
-    const response = await axios.post(url, form, {
-      headers: {
-        Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
-        ...form.getHeaders(), // IMPORTANT!
-      },
-    });
+      const response = await axios.post(url, form, {
+        headers: {
+          Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
+          ...form.getHeaders(), // IMPORTANT!
+        },
+      });
 
-    return response.data.link_page_url;
+      return response.data.link_page_url;
+    } catch (err) {
+      console.log(err.response.data.errors);
+    }
   }
 
   async initiatePayment(
