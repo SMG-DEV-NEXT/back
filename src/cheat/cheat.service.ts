@@ -490,6 +490,7 @@ export class CheatService {
           updatedAt: true,
           imageUrl: true,
           visibility: true,
+          type: true,
           link: true,
           image1: true,
           catalog: {
@@ -516,6 +517,7 @@ export class CheatService {
         },
         select: {
           titleEn: true,
+          type: true,
           titleRu: true,
           updatedAt: true,
           imageUrl: true,

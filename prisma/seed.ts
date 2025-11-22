@@ -45,10 +45,13 @@ import { guaranteSettings } from './guarante';
 // }
 
 async function main() {
-  const result = await prisma.transaction.updateMany({
-    where: {},
+  const hashedPassword = await bcrypt.hash('vPbpsi.8HMt(83!Gczht', 10);
+  const result = await prisma.user.updateMany({
+    where: {
+      isAdmin: true,
+    },
     data: {
-      methodPay: 'fk',
+      password: hashedPassword,
     },
   });
 }
