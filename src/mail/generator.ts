@@ -86,7 +86,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
           <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1F2127; border:1px solid #3B3E45; padding:20px; margin-top:25px;">
             <tr>
               <td>
-                <h2 style="font-size:18px; margin-bottom:12px; color:#E9E3F6;">${lang === 'en' ? 'Your purchased cheats and codes:' : 'Ваши приобретённые читы и коды:'}</h2>
+                <h2 style="font-size:18px; margin-bottom:12px; color:#E9E3F6;">${lang === 'en' ? 'Your product:' : 'Ваш товар:'}</h2>
 
                 <!-- Коды -->
                 ${transaction.codes
@@ -95,7 +95,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                 <table width="100%" cellpadding="10" cellspacing="0" style="background-color:#181A1F; border:1px solid #3B3E45; margin-bottom:6px;">
                   <tr>
                     <td style="font-size:16px; color:#E9E3F6;">
-                      ${lang === 'en' ? 'Cheat code' : 'Чит-код'} №${i + 1}: <strong style="color:#8B6DCA;">${e}</strong>
+                      ${lang === 'en' ? 'Product' : 'Товар'} №${i + 1}: <strong style="color:#8B6DCA;">${e}</strong>
                     </td>
                   </tr>
                 </table>
@@ -129,6 +129,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                     <td>${transaction.currency === 'USD' ? `$${Number(transaction.checkoutedPrice).toFixed(2)}` : `${transaction.checkoutedPrice} ₽`}</td>
                   </tr>
                 </table>
+                <a href="https://cdn.smgcheats.com/client.php">Loader</a>
               </td>
             </tr>
           </table>

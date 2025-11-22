@@ -5,6 +5,7 @@ import {
   Min,
   Max,
   IsOptional,
+  IsString,
 } from 'class-validator';
 
 /**
@@ -46,7 +47,7 @@ export class ResellerRequestDto {
   @IsNotEmpty({ message: 'resourse_required' })
   resourse: string;
 
-  @IsEmail({}, { message: 'email_invalid' })
+  @IsString({ message: 'telegram_required' })
   email: string;
 
   @IsNotEmpty({ message: 'count_required' })

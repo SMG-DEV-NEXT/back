@@ -245,7 +245,6 @@ export class CheckoutService {
       const { MERCHANT_ORDER_ID, InvId, Status } = data;
       let transaction;
       if (InvId && Status === 'SUCCESS') {
-        console.log(data);
         transaction = await this.prisma.transaction.findFirst({
           where: { orderId: InvId },
         });

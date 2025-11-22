@@ -21,18 +21,21 @@ export class StatisticService {
 
     const lastWeek = await this.prisma.transaction.count({
       where: {
+        status: 'success',
         createdAt: { gte: dayjs().subtract(7, 'days').toDate() },
       },
     });
 
     const lastWeekData = await this.prisma.transaction.findMany({
       where: {
+        status: 'success',
         createdAt: { gte: dayjs().subtract(7, 'days').toDate() },
       },
     });
 
     const previousWeek = await this.prisma.transaction.count({
       where: {
+        status: 'success',
         createdAt: {
           gte: dayjs().subtract(14, 'days').toDate(),
           lt: dayjs().subtract(7, 'days').toDate(),
@@ -78,11 +81,13 @@ export class StatisticService {
   private async getTotalSales() {
     const totalResult = await this.prisma.transaction.aggregate({
       _sum: { realPrice: true },
+      where: { status: 'success' },
     });
 
     const lastWeekResult = await this.prisma.transaction.aggregate({
       _sum: { realPrice: true },
       where: {
+        status: 'success',
         createdAt: { gte: dayjs().subtract(7, 'days').toDate() },
       },
     });
@@ -91,6 +96,7 @@ export class StatisticService {
       _sum: { realPrice: true },
       where: {
         type: 'KEY_PURCHASE',
+        status: 'success',
         createdAt: {
           gte: dayjs().subtract(14, 'days').toDate(),
           lt: dayjs().subtract(7, 'days').toDate(),
@@ -120,6 +126,7 @@ export class StatisticService {
   private async getDailyCount(type: string) {
     const results = await this.prisma.transaction.findMany({
       where: {
+        status: 'success',
         createdAt: {
           gte: dayjs().subtract(7, 'days').startOf('day').toDate(),
         },
@@ -160,6 +167,7 @@ export class StatisticService {
   private async getSalesTrend() {
     const sales = await this.prisma.transaction.findMany({
       where: {
+        status: 'success',
         createdAt: {
           gte: dayjs().subtract(7, 'days').startOf('day').toDate(),
         },
@@ -193,6 +201,7 @@ export class StatisticService {
     const diffDays = endDate.diff(startDate, 'day');
     const result = await this.prisma.transaction.findMany({
       where: {
+        status: 'success',
         createdAt: {
           gte: startDate.toDate(),
           lte: endDate.toDate(),
