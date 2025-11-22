@@ -44,17 +44,7 @@ import { guaranteSettings } from './guarante';
 //   });
 // }
 
-async function main() {
-  const hashedPassword = await bcrypt.hash('vPbpsi.8HMt(83!Gczht', 10);
-  const result = await prisma.user.updateMany({
-    where: {
-      isAdmin: true,
-    },
-    data: {
-      password: hashedPassword,
-    },
-  });
-}
+async function main() {}
 main()
   .catch((e) => {
     console.error(e);
