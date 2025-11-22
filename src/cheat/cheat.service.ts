@@ -356,14 +356,16 @@ export class CheatService {
 
     // Map and calculate comparable price
     let cheats = data.map((cheat) => {
-      const dayPrice = cheat.plan?.day?.price;
-      const weekPrice = cheat.plan?.week?.price;
-      const monthPrice = cheat.plan?.month?.price;
+      const dayPrice = cheat.plan?.day;
+      const weekPrice = cheat.plan?.week;
+      const monthPrice = cheat.plan?.month;
 
-      const prices = [dayPrice, weekPrice, monthPrice].filter(
-        (p) => typeof p === 'number' && p >= 0,
-      );
-
+      const prices = [dayPrice, weekPrice, monthPrice]
+        .filter(
+          (p) =>
+            typeof p?.price === 'number' && p?.price >= 0 && p?.keys.length > 0,
+        )
+        .map((e) => e.price);
       // use lowest price among all plans
       const comparablePrice = prices.length > 0 ? Math.min(...prices) : 0;
 
