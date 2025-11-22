@@ -406,7 +406,7 @@ export class CheatService {
     }
 
     // sorting
-    if (type === 'low_price') {
+    if (type === 'high_price') {
       cheats.sort((a, b) => b._comparePrice - a._comparePrice);
     } else if (type === 'raiting') {
       const cheatsWithRating = cheats.map((cheat) => {
