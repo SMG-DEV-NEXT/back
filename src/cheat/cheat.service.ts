@@ -320,9 +320,11 @@ export class CheatService {
       price_start,
       catalogId,
     } = dto;
+
     const page = p * 1;
     const limit = l * 1;
     const skip = (page - 1) * limit;
+
     const [data, catalog] = await Promise.all([
       this.prisma.cheat.findMany({
         where: {
@@ -339,15 +341,9 @@ export class CheatService {
           comments: true,
           plan: {
             include: {
-              day: {
-                select: this.fields,
-              },
-              week: {
-                select: this.fields,
-              },
-              month: {
-                select: this.fields,
-              },
+              day: { select: this.fields },
+              week: { select: this.fields },
+              month: { select: this.fields },
             },
           },
         },
@@ -357,49 +353,59 @@ export class CheatService {
       }),
       this.prisma.catalog.findFirst({ where: { link: dto.catalogId } }),
     ]);
-    let cheats = data.map((cheat) => ({
-      ...cheat,
-      plan: cheat.plan
-        ? {
-            ...cheat.plan,
-            day: {
-              id: cheat.plan.day?.id,
-              price: cheat.plan.day?.price,
-              prcent: cheat.plan.day?.prcent,
-              keysCount: cheat.plan.day?.keys?.length || 0,
-            },
-            week: {
-              id: cheat.plan.week?.id,
-              price: cheat.plan.week?.price,
-              prcent: cheat.plan.week?.prcent,
-              keysCount: cheat.plan.week?.keys?.length || 0,
-            },
-            month: {
-              id: cheat.plan.month?.id,
-              price: cheat.plan.month?.price,
-              prcent: cheat.plan.month?.prcent,
-              keysCount: cheat.plan.month?.keys?.length || 0,
-            },
-          }
-        : null,
-    }));
 
-    // sorting
+    // Map and calculate comparable price
+    let cheats = data.map((cheat) => {
+      const dayPrice = cheat.plan?.day?.price;
+      const weekPrice = cheat.plan?.week?.price;
+      const monthPrice = cheat.plan?.month?.price;
 
-    // filter if selected price range
-    if (price_end >= 0 && price_start >= 0) {
+      const prices = [dayPrice, weekPrice, monthPrice].filter(
+        (p) => typeof p === 'number' && p >= 0,
+      );
+
+      // use lowest price among all plans
+      const comparablePrice = prices.length > 0 ? Math.min(...prices) : 0;
+
+      return {
+        ...cheat,
+        _comparePrice: comparablePrice,
+        plan: cheat.plan
+          ? {
+              ...cheat.plan,
+              day: {
+                id: cheat.plan.day?.id,
+                price: cheat.plan.day?.price,
+                prcent: cheat.plan.day?.prcent,
+                keysCount: cheat.plan.day?.keys?.length || 0,
+              },
+              week: {
+                id: cheat.plan.week?.id,
+                price: cheat.plan.week?.price,
+                prcent: cheat.plan.week?.prcent,
+                keysCount: cheat.plan.week?.keys?.length || 0,
+              },
+              month: {
+                id: cheat.plan.month?.id,
+                price: cheat.plan.month?.price,
+                prcent: cheat.plan.month?.prcent,
+                keysCount: cheat.plan.month?.keys?.length || 0,
+              },
+            }
+          : null,
+      };
+    });
+
+    // filter by price range
+    if (price_start >= 0 && price_end >= 0) {
       cheats = cheats.filter((e) => {
-        return (
-          (e?.plan?.day?.price || 0) >= price_start &&
-          (e?.plan?.day?.price || 0) <= price_end
-        );
+        return e._comparePrice >= price_start && e._comparePrice <= price_end;
       });
     }
 
-    if (type === 'high_price') {
-      cheats = cheats.sort(
-        (a, b) => (b.plan?.day?.price || 0) - (a.plan?.day?.price || 0),
-      );
+    // sorting
+    if (type === 'low_price') {
+      cheats.sort((a, b) => b._comparePrice - a._comparePrice);
     } else if (type === 'raiting') {
       const cheatsWithRating = cheats.map((cheat) => {
         const starsArray = cheat.comments.map((c) => c.stars);
@@ -413,31 +419,36 @@ export class CheatService {
           rating: average,
         };
       });
+
       cheats = cheatsWithRating.sort((a, b) => b.rating - a.rating);
     } else {
-      cheats = cheats.sort(
-        (a, b) => (a.plan?.day?.price || 0) - (b.plan?.day?.price || 0),
-      );
+      // low → high price
+      cheats.sort((a, b) => a._comparePrice - b._comparePrice);
     }
-    // max and min price info
+
+    // collect min/max prices for filter UI
     const prices = new Set<number>();
     data.forEach((cheat) => {
-      const {
-        plan: { day, month, week },
-      } = cheat;
-      if (day.keys.length > 0) prices.add(day.price);
-      if (week.keys.length > 0) prices.add(week.price);
-      if (month.keys.length > 0) prices.add(month.price);
+      const day = cheat.plan?.day;
+      const week = cheat.plan?.week;
+      const month = cheat.plan?.month;
+
+      if (day?.keys?.length > 0) prices.add(day.price);
+      if (week?.keys?.length > 0) prices.add(week.price);
+      if (month?.keys?.length > 0) prices.add(month.price);
     });
+
     const SortingDataForLimits = [...prices].sort((a, b) => a - b);
     const minPrice = SortingDataForLimits[0];
     const maxPrice = SortingDataForLimits[SortingDataForLimits.length - 1];
-    const allCheats = cheats.slice(skip, skip + limit); // for pagination
+
+    const paginated = cheats.slice(skip, skip + limit);
+
     return {
       total: Math.ceil(cheats.length / limit),
       page,
       limit,
-      data: allCheats,
+      data: paginated,
       lowPrice: minPrice,
       maxPrice: maxPrice,
       hideFilterBar: data.length < 2,
