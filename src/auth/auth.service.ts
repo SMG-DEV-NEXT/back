@@ -133,6 +133,10 @@ export class AuthService {
       where: {
         id,
       },
+      include: {
+        transactions: { include: { cheat: true } },
+        comments: true,
+      },
     });
     if (!user) {
       throw new BadRequestException('email_not_found');
@@ -156,26 +160,56 @@ export class AuthService {
     }
   }
 
-  addRefreshTokenToCookies(res: Response, token: string) {
-    const expireDate = new Date();
-    expireDate.setDate(expireDate.getDate() + 7);
-    res.cookie('refresh_token', token, {
+  setAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+    remember = false,
+  ) {
+    // Access Token (short lived)
+    res.cookie('access_token', accessToken, {
       httpOnly: true,
-      domain: 'localhost',
-      expires: expireDate,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'lax',
+      ...(remember && {
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      }),
+    });
+
+    // Refresh Token (long lived)
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
     });
   }
 
-  removeRefreshTokenFromResponse(res: Response) {
-    res.cookie('refresh_token', '', {
-      httpOnly: true,
-      domain: 'localhost',
-      expires: new Date(0),
-      secure: true,
-      sameSite: 'none',
-    });
+  // -----------------------------------
+  // CLEAR COOKIES (logout)
+  // -----------------------------------
+  clearAuthCookies(res: Response) {
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+  }
+
+  // -----------------------------------
+  // VERIFY TOKENS
+  // -----------------------------------
+  verifyAccessToken(token: string) {
+    try {
+      return this.jwtService.verify(token);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  verifyRefreshToken(token: string) {
+    try {
+      return this.jwtService.verify(token);
+    } catch (e) {
+      throw new UnauthorizedException('Invalid Refresh Token');
+    }
   }
 
   async getUserByEmail(email: string): Promise<User> {
@@ -186,11 +220,11 @@ export class AuthService {
   generateTokens(id: any): { access_token: string; refresh_token: string } {
     const accessToken = this.jwtService.sign(
       { userId: id },
-      { expiresIn: '2d' },
+      { expiresIn: '7d' },
     );
     const refreshToken = this.jwtService.sign(
       { userId: id },
-      { expiresIn: '7d' },
+      { expiresIn: '30d' },
     );
     return { access_token: accessToken, refresh_token: refreshToken };
   }

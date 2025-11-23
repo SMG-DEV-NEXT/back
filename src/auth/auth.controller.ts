@@ -22,6 +22,7 @@ import {
   RegisterDto,
   UpdateDto,
 } from './dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 // DTO for registration
 
@@ -30,6 +31,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly sanitizeService: SanitizeService,
+    private prisma: PrismaService,
     private readonly twoFactorAuthService: TwoFactorAuthService,
   ) {}
 
@@ -58,10 +60,8 @@ export class AuthController {
         user.id,
       );
       const { password: p, ...userWithoutPassword } = user;
-      this.authService.addRefreshTokenToCookies(res, refresh_token);
-      return res
-        .status(200)
-        .json({ user: userWithoutPassword, token: access_token });
+      this.authService.setAuthCookies(res, access_token, refresh_token, true);
+      return res.status(200).json({ user: userWithoutPassword });
     } catch (err) {
       console.log(err);
       return res.status(400).send(err);
@@ -88,20 +88,21 @@ export class AuthController {
       }
       const { access_token, refresh_token, user } = data;
       const { password: p, ...userWithoutPassword } = user;
-      if (!rememberMe) {
-        res.cookie('access', access_token, {
-          httpOnly: true, // Prevent access via JavaScript (XSS protection)
-          secure: true, // Use HTTPS
-          sameSite: 'strict',
-        });
-        return res
-          .status(200)
-          .json({ user: userWithoutPassword, token: access_token });
-      }
-      this.authService.addRefreshTokenToCookies(res, refresh_token);
-      return res
-        .status(200)
-        .json({ user: userWithoutPassword, token: access_token });
+      // if (!rememberMe) {
+      //   res.cookie('access', access_token, {
+      //     httpOnly: true, // Prevent access via JavaScript (XSS protection)
+      //     secure: true, // Use HTTPS
+      //     sameSite: 'strict',
+      //   });
+      //   return res.status(200).json({ user: userWithoutPassword });
+      // }
+      this.authService.setAuthCookies(
+        res,
+        access_token,
+        refresh_token,
+        rememberMe,
+      );
+      return res.status(200).json({ user: userWithoutPassword });
     } catch (error) {
       return res.status(400).send(error);
     }
@@ -124,10 +125,35 @@ export class AuthController {
   }
 
   @Get('')
-  @UseGuards(AuthGuard('jwt'))
   async authUser(@Req() request: any, @Res() res: Response) {
     const user = await request.user;
-    return res.status(200).send(user);
+    const token = request.cookies['access_token'];
+    console.log(token, 4444);
+    if (token) {
+      const { userId } = await this.authService.verifyAccessToken(token);
+      if (!userId) {
+        const verifiedUser = await this.verifyToken(request, res);
+
+        return res.status(200).send(verifiedUser.user);
+      }
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          logo: true,
+          twoFactorSecret: true,
+          isTwoFactorEnabled: true,
+          isAdmin: true,
+          comments: true,
+          accept: true,
+          transactions: { include: { cheat: true } },
+        },
+      });
+      return res.status(200).send(user);
+    }
+    return res.status(200).send(null);
   }
 
   @Post('/resend-email')
@@ -142,24 +168,29 @@ export class AuthController {
     return res.status(200).send(true);
   }
 
-  @Get('verify')
   async verifyToken(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = req.cookies['refresh_token'];
     if (!token) {
-      this.authService.removeRefreshTokenFromResponse(res);
+      this.authService.clearAuthCookies(res);
       throw new UnprocessableEntityException('Tokes is invalid');
     }
     const { data, tokens } = await this.authService.verifyToken(token);
-    this.authService.addRefreshTokenToCookies(res, tokens.refresh_token);
-    return { user: data, token: tokens.access_token };
+    this.authService.setAuthCookies(
+      res,
+      tokens.access_token,
+      tokens.refresh_token,
+      true,
+    );
+    return { user: data };
   }
 
   @Post('/logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    this.authService.removeRefreshTokenFromResponse(res);
+    // this.authService.removeRefreshTokenFromResponse(res);
+    this.authService.clearAuthCookies(res);
     return res.status(200).send(true);
   }
 
