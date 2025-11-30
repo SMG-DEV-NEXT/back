@@ -128,7 +128,6 @@ export class AuthController {
   async authUser(@Req() request: any, @Res() res: Response) {
     const user = await request.user;
     const token = request.cookies['access_token'];
-    console.log(token, 4444);
     if (token) {
       const { userId } = await this.authService.verifyAccessToken(token);
       if (!userId) {
@@ -148,7 +147,10 @@ export class AuthController {
           isAdmin: true,
           comments: true,
           accept: true,
-          transactions: { include: { cheat: true } },
+          transactions: {
+            where: { status: 'success' },
+            include: { cheat: true },
+          },
         },
       });
       return res.status(200).send(user);

@@ -423,6 +423,8 @@ export class CheatService {
       });
 
       cheats = cheatsWithRating.sort((a, b) => b.rating - a.rating);
+    } else if (type === 'popular') {
+      cheats = cheats.sort((a, b) => a.position - b.position);
     } else {
       // low → high price
       cheats.sort((a, b) => a._comparePrice - b._comparePrice);
@@ -509,6 +511,7 @@ export class CheatService {
           catalog: {
             select: {
               link: true,
+              title: true,
             },
           },
         },
@@ -540,6 +543,7 @@ export class CheatService {
           catalog: {
             select: {
               link: true,
+              title: true,
             },
           },
         },

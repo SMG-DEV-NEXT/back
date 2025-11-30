@@ -5,7 +5,6 @@ import {
   Body,
   Param,
   Delete,
-  Patch,
   UseGuards,
   Put,
   Query,
@@ -20,7 +19,6 @@ import {
   GetCommentsDto,
   UpdateComment,
 } from './dto';
-import { Request } from 'express';
 import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('comments')
@@ -29,10 +27,20 @@ export class CommentController {
 
   @Post('create')
   @UseGuards(AuthGuard('jwt'))
-  async createPost(@Body() dto: CommentCreate, @Req() req: any) {
+  async createComment(@Body() dto: CommentCreate, @Req() req: any) {
     try {
       const user = req.user;
       return this.commentService.create(dto, user);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Delete('remove/:id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async deleteComment(@Param() params: { id: string }) {
+    try {
+      return this.commentService.remove(params.id);
     } catch (error) {
       await sendErrorNotification(error);
     }

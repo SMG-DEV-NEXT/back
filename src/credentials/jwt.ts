@@ -43,7 +43,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         isAdmin: true,
         comments: true,
         accept: true,
-        transactions: { include: { cheat: true } },
+        transactions: {
+          where: { status: 'success' },
+          include: { cheat: true },
+        },
       },
     });
 

@@ -25,6 +25,11 @@ export class CommentService {
       },
     });
   }
+  async remove(id: string) {
+    return this.prisma.comment.delete({
+      where: { id },
+    });
+  }
   async getFilteredComments(dto: GetCommentsDto) {
     const {
       cheatTitle,

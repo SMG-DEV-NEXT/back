@@ -141,7 +141,7 @@ export class GetCheatsDto {
 
   @IsOptional()
   @IsString()
-  type?: 'high_price' | 'low_price' | 'raiting';
+  type?: 'high_price' | 'low_price' | 'raiting' | 'popular';
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

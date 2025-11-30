@@ -86,7 +86,7 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
           <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1F2127; border:1px solid #3B3E45; padding:20px; margin-top:25px;">
             <tr>
               <td>
-                <h2 style="font-size:18px; margin-bottom:12px; color:#E9E3F6;">${lang === 'en' ? 'Your product:' : 'Ваш товар:'}</h2>
+                <h2 style="font-size:18px; margin-bottom:12px; color:#E9E3F6;">${lang === 'en' ? 'Your product:' : 'Ваш приобретённый товар:'}</h2>
 
                 <!-- Коды -->
                 ${transaction.codes

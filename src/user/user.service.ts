@@ -50,7 +50,10 @@ export class UserService {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        transactions: true,
+        transactions: {
+          where: { status: 'success' },
+          include: { cheat: true },
+        },
         comments: {
           include: { cheat: true },
         },
@@ -69,7 +72,6 @@ export class UserService {
     return this.prisma.user.update({
       where: { id },
       data: {
-        ...findUser,
         ...updateData,
         password: newPassword,
       },
