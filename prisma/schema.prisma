@@ -64,6 +64,7 @@ model Stats {
   Image1       String?
   type         String  @default("unpublish") // "published" or "unpublish"
   Image2       String?
+  Image3       String?
   catalogId    String   @db.ObjectId // Foreign key to Game
   catalog      Catalog  @relation(fields: [catalogId], references: [id]) // Relation to Game
 }
