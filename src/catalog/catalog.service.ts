@@ -25,7 +25,7 @@ export class CatalogService {
 
   async updateCatalog(id: string, data: Prisma.CatalogUpdateInput) {
     const existingCatalog = await this.prisma.catalog.findUnique({
-      where: { id },
+      where: { id, isDeleted: false },
     });
 
     if (existingCatalog.position !== data.position && isNumber(data.position)) {
@@ -37,6 +37,7 @@ export class CatalogService {
   async getAllCatalogs() {
     return this.prisma.catalog.findMany({
       include: { cheats: true },
+      where: { isDeleted: false },
       orderBy: {
         position: 'desc',
       },
@@ -48,6 +49,7 @@ export class CatalogService {
       include: { cheats: true },
       where: {
         type: 'published',
+        isDeleted: false,
       },
       orderBy: {
         position: 'desc',
@@ -60,6 +62,7 @@ export class CatalogService {
       include: { cheats: true },
       where: {
         link: id,
+        isDeleted: false,
       },
       orderBy: {
         position: 'desc',
@@ -76,6 +79,7 @@ export class CatalogService {
       include: { cheats: true },
       where: {
         id: id,
+        isDeleted: false,
       },
       orderBy: {
         position: 'desc',
@@ -89,27 +93,16 @@ export class CatalogService {
 
   async deleteCatalog(id: string): Promise<{ message: string }> {
     // Check if catalog exists
-    const catalog = await this.prisma.catalog.findFirst({ where: { id } });
+    const catalog = await this.prisma.catalog.findFirst({
+      where: { id, isDeleted: false },
+    });
     if (!catalog) {
       throw new NotFoundException('Каталог не найден');
     }
-    const cheatsInCatalog = await this.prisma.cheat.findMany({
+    await this.prisma.cheat.updateMany({
       where: { catalogId: catalog.id },
-      select: { id: true },
+      data: { isDeleted: true },
     });
-
-    const cheatIds = cheatsInCatalog.map((c) => c.id);
-
-    const existingTransactions = await this.prisma.transaction.findMany({
-      where: {
-        cheatId: { in: cheatIds },
-      },
-    });
-    if (existingTransactions.length) {
-      throw new BadRequestException(
-        'The Catalog cannot be deleted because it has cheats with transactions.',
-      );
-    }
 
     // Delete related cheats first
     await this.prisma.comment.deleteMany({
@@ -124,10 +117,12 @@ export class CatalogService {
         catalogId: id,
       },
     });
-    await this.prisma.cheat.deleteMany({ where: { catalogId: id } });
 
     // Delete the catalog
-    await this.prisma.catalog.delete({ where: { id } });
+    await this.prisma.catalog.update({
+      where: { id },
+      data: { isDeleted: true },
+    });
 
     return { message: id };
   }
@@ -138,6 +133,7 @@ export class CatalogService {
     }
     const cheatsInCatalog = await this.prisma.cheat.findMany({
       where: {
+        isDeleted: false,
         catalogId: {
           in: ids,
         },
@@ -159,11 +155,15 @@ export class CatalogService {
     }
 
     // Delete all related cheats first
-    await this.prisma.cheat.deleteMany({ where: { catalogId: { in: ids } } });
+    await this.prisma.cheat.updateMany({
+      where: { catalogId: { in: ids } },
+      data: { isDeleted: true },
+    });
 
     // Delete catalogs
-    const deleteResult = await this.prisma.catalog.deleteMany({
+    const deleteResult = await this.prisma.catalog.updateMany({
       where: { id: { in: ids } },
+      data: { isDeleted: true },
     });
 
     if (deleteResult.count === 0) {
@@ -186,11 +186,13 @@ export class CatalogService {
         where: {
           title: { contains: search, mode: 'insensitive' },
           type: 'published',
+          isDeleted: false,
         },
         include: {
           cheats: {
             where: {
               status: 'published',
+              isDeleted: false,
             },
             include: {
               plan: {
@@ -267,6 +269,7 @@ export class CatalogService {
       },
       where: {
         status: 'published',
+        isDeleted: false,
         catalog: {
           type: 'published',
         },

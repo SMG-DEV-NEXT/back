@@ -31,6 +31,7 @@ export class StatsService {
       },
       where: {
         type: 'published',
+        isDeleted: false,
       },
     });
     return {
@@ -180,7 +181,7 @@ export class StatsService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.stats.count({ where: filters }),
-      this.prisma.catalog.findFirst({ where: { id } }),
+      this.prisma.catalog.findFirst({ where: { id, isDeleted: false } }),
     ]);
 
     return {

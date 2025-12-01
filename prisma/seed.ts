@@ -44,7 +44,16 @@ import { guaranteSettings } from './guarante';
 //   });
 // }
 
-async function main() {}
+async function main() {
+  await prisma.cheat.updateMany({
+    where: {},
+    data: { isDeleted: false },
+  });
+  await prisma.catalog.updateMany({
+    where: {},
+    data: { isDeleted: false },
+  });
+}
 main()
   .catch((e) => {
     console.error(e);

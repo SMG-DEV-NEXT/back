@@ -47,6 +47,7 @@ model Catalog {
   imageUrl String?
   cheats   Cheat[]
   stats    Stats[]
+  isDeleted Boolean @default(false)
 }
 
 model Stats {
@@ -127,6 +128,7 @@ model Cheat {
   h1Ru           String? @default("")
   h1En           String? @default("")
   updatedAt      DateTime @updatedAt
+  isDeleted      Boolean @default(false)
 }
 
 model Comment {

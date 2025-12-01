@@ -61,7 +61,9 @@ export class CheatService {
       orderBy: {
         position: 'desc',
       },
-
+      where: {
+        isDeleted: false,
+      },
       include: { catalog: true },
     });
   }
@@ -70,6 +72,7 @@ export class CheatService {
     return this.prisma.cheat.findMany({
       where: {
         status: 'published',
+        isDeleted: false,
         OR: [
           { titleEn: { contains: search, mode: 'insensitive' } },
           { titleRu: { contains: search, mode: 'insensitive' } },
@@ -89,7 +92,7 @@ export class CheatService {
 
   async getAllWithPlans(id: string) {
     return this.prisma.cheat.findMany({
-      where: { catalogId: id },
+      where: { catalogId: id, isDeleted: false },
       include: {
         plan: {
           include: {
@@ -105,7 +108,7 @@ export class CheatService {
   // Get a cheat by its ID
   async getById(id: string) {
     return this.prisma.cheat.findUnique({
-      where: { id },
+      where: { id, isDeleted: false },
       include: {
         catalog: true,
       },
@@ -119,6 +122,7 @@ export class CheatService {
       where: {
         link: id,
         status: 'published',
+        isDeleted: false,
       },
       include: {
         comments: {
@@ -140,6 +144,9 @@ export class CheatService {
         catalog: true,
       },
     });
+    if (!cheat) {
+      throw new NotFoundException('Cheat not found');
+    }
     if (ref) {
       refUser = await this.prisma.referral.findFirst({
         where: { code: ref },
@@ -197,7 +204,7 @@ export class CheatService {
   // Update a cheat
   async update(id: string, updateCheatDto: any) {
     const existingCheat = await this.prisma.cheat.findUnique({
-      where: { id },
+      where: { id, isDeleted: false },
     });
     if (!existingCheat) {
       throw new NotFoundException('Cheat not found');
@@ -249,22 +256,26 @@ export class CheatService {
     const e = await this.prisma.plan.findMany({
       where: { cheatId: id },
     });
-    const existingTransactions = await this.prisma.transaction.findFirst({
-      where: {
-        cheatId: id,
-      },
-    });
+    // const existingTransactions = await this.prisma.transaction.findFirst({
+    //   where: {
+    //     cheatId: id,
+    //   },
+    // });
 
-    if (existingTransactions) {
-      throw new BadRequestException(
-        'The Cheat cannot be deleted because it has transactions.',
-      );
-    }
+    // if (existingTransactions) {
+    //   throw new BadRequestException(
+    //     'The Cheat cannot be deleted because it has transactions.',
+    //   );
+    // }
     await this.prisma.plan.deleteMany({
       where: { cheatId: id },
     });
-    await this.prisma.cheat.delete({
+    await this.prisma.cheat.update({
       where: { id },
+      data: { isDeleted: true },
+    });
+    await this.prisma.comment.deleteMany({
+      where: { cheatId: id },
     });
     return { message: id };
   }
@@ -284,12 +295,13 @@ export class CheatService {
         'The Cheat cannot be deleted because it has transactions.',
       );
     }
-    await this.prisma.cheat.deleteMany({
+    await this.prisma.cheat.updateMany({
       where: {
         id: {
           in: ids,
         },
       },
+      data: { isDeleted: true },
     });
     await this.prisma.plan.deleteMany({
       where: {
@@ -329,6 +341,7 @@ export class CheatService {
       this.prisma.cheat.findMany({
         where: {
           status: 'published',
+          isDeleted: false,
           catalog: {
             link: catalogId,
           },
@@ -351,7 +364,9 @@ export class CheatService {
           position: 'desc',
         },
       }),
-      this.prisma.catalog.findFirst({ where: { link: dto.catalogId } }),
+      this.prisma.catalog.findFirst({
+        where: { link: dto.catalogId, isDeleted: false },
+      }),
     ]);
 
     // Map and calculate comparable price
@@ -464,6 +479,7 @@ export class CheatService {
     return this.prisma.cheat.findMany({
       take: 6,
       where: {
+        isDeleted: false,
         status: 'published',
       },
       orderBy: {
@@ -479,6 +495,7 @@ export class CheatService {
     const allCatalogs = await this.prisma.catalog.findMany({
       where: {
         type: 'published',
+        isDeleted: false,
       },
       select: {
         title: true,
@@ -488,6 +505,7 @@ export class CheatService {
     if (filters.type === 'all') {
       data = await this.prisma.cheat.findMany({
         where: {
+          isDeleted: false,
           status: 'published',
           ...(catalog !== 'all'
             ? { catalog: { link: catalog } } // if catalog exists → filter by link
@@ -520,6 +538,7 @@ export class CheatService {
       data = await this.prisma.cheat.findMany({
         where: {
           status: 'published',
+          isDeleted: false,
           visibility: filters.type,
           ...(catalog !== 'all'
             ? { catalog: { link: catalog } } // if catalog exists → filter by link

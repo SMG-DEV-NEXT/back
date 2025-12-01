@@ -119,7 +119,7 @@ export class CheckoutService {
       const planType = data.type as 'day' | 'week' | 'month';
 
       const cheat = await this.prisma.cheat.findFirst({
-        where: { id: data.itemId },
+        where: { id: data.itemId, isDeleted: false },
         include: { plan: { include: { day: true, month: true, week: true } } },
       });
       const promoCode = data.promo
@@ -289,7 +289,7 @@ export class CheckoutService {
       if (!transaction || transaction.status === 'success') return;
 
       const cheat = await this.prisma.cheat.findFirst({
-        where: { id: transaction.cheatId },
+        where: { id: transaction.cheatId, isDeleted: false },
         include: { plan: { include: { [transaction.type]: true } } },
       });
 
