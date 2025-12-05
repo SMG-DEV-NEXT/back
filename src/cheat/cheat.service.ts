@@ -17,6 +17,7 @@ export class CheatService {
     prcent: true,
     keys: true,
   };
+  END_STATUSES = ['detected', 'update', 'freeze'];
   constructor(
     private prisma: PrismaService,
     private planService: PlanService,
@@ -322,6 +323,18 @@ export class CheatService {
     ]);
   }
 
+  sortingCheats = (items: Array<any>) =>
+    items.sort((a, b) => {
+      const aEnd = this.END_STATUSES.includes(a.status);
+      const bEnd = this.END_STATUSES.includes(b.status);
+
+      // Items with end-status go last
+      if (aEnd && !bEnd) return 1;
+      if (!aEnd && bEnd) return -1;
+
+      return 0; // keep original order inside same group
+    });
+
   async apiCheats(dto: GetCheatsDto) {
     const {
       search,
@@ -461,7 +474,7 @@ export class CheatService {
     const minPrice = SortingDataForLimits[0];
     const maxPrice = SortingDataForLimits[SortingDataForLimits.length - 1];
 
-    const paginated = cheats.slice(skip, skip + limit);
+    const paginated = this.sortingCheats(cheats).slice(skip, skip + limit);
 
     return {
       total: Math.ceil(cheats.length / limit),
