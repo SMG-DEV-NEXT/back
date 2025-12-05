@@ -325,8 +325,8 @@ export class CheatService {
 
   sortingCheats = (items: Array<any>) =>
     items.sort((a, b) => {
-      const aEnd = this.END_STATUSES.includes(a.status);
-      const bEnd = this.END_STATUSES.includes(b.status);
+      const aEnd = this.END_STATUSES.includes(a.type);
+      const bEnd = this.END_STATUSES.includes(b.type);
 
       // Items with end-status go last
       if (aEnd && !bEnd) return 1;
@@ -354,6 +354,16 @@ export class CheatService {
       this.prisma.cheat.findMany({
         where: {
           status: 'published',
+          type: {
+            in: [
+              'published',
+              'undetected',
+              'detected',
+              'update',
+              'freeze',
+              'risk',
+            ],
+          },
           isDeleted: false,
           catalog: {
             link: catalogId,
