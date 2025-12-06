@@ -210,6 +210,8 @@ export class StatisticService {
       select: {
         realPrice: true,
         createdAt: true,
+        cheat: true,
+        type: true,
       },
     });
 
@@ -238,12 +240,12 @@ export class StatisticService {
             : 100
           : +((current / previous) * 100).toFixed(1);
 
-      trend = dailyRevenue.slice(half);
+      trend = dailyRevenue;
     }
-
     return {
       percent,
       trend,
+      result,
     };
   }
 }
