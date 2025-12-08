@@ -38,10 +38,10 @@ export class PromocodeController {
       await sendErrorNotification(error);
     }
   }
-  @Get('check/:code')
-  async check(@Param('code') code: string) {
+  @Post('check')
+  async check(@Body() body: { code: string }) {
     try {
-      return this.service.check(code);
+      return this.service.check(body.code);
     } catch (error) {
       console.log(error);
       await sendErrorNotification(error);
