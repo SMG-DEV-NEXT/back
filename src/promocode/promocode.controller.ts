@@ -38,6 +38,15 @@ export class PromocodeController {
       await sendErrorNotification(error);
     }
   }
+  @Get('check/:code')
+  async check(@Param('code') code: string) {
+    try {
+      return this.service.check(code);
+    } catch (error) {
+      console.log(error);
+      await sendErrorNotification(error);
+    }
+  }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -65,16 +74,6 @@ export class PromocodeController {
     try {
       return this.service.delete(id);
     } catch (error) {
-      await sendErrorNotification(error);
-    }
-  }
-
-  @Get('check/:code')
-  async check(@Param('code') code: string) {
-    try {
-      return this.service.check(code);
-    } catch (error) {
-      console.log(error);
       await sendErrorNotification(error);
     }
   }
