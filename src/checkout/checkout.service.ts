@@ -44,10 +44,12 @@ export class CheckoutService {
     email: string,
     variantPay: number,
   ) {
+    const amountStr = currency !== 'RUB' ? amount.toFixed(2) : amount;
+
     const data = {
       shopId: Number(process.env.FK_SHOP_ID),
       paymentId: orderId,
-      amount: amount,
+      amount: amountStr,
       currency,
       description: 'Покупка товара',
       nonce: Date.now(),
