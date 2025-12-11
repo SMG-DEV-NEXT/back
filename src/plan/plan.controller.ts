@@ -55,12 +55,12 @@ export class PlanController {
     }
   }
 
-  @Delete(':id')
-  async delete(@Param() params: ParamsIdDto) {
-    try {
-      return this.planService.delete(params.id);
-    } catch (error) {
-      await sendErrorNotification(error);
-    }
-  }
+  // @Delete(':id')
+  // async delete(@Param() params: ParamsIdDto) {
+  //   try {
+  //     return this.planService.delete(params.id);
+  //   } catch (error) {
+  //     await sendErrorNotification(error);
+  //   }
+  // }
 }

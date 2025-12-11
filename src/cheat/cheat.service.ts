@@ -254,9 +254,6 @@ export class CheatService {
 
   // Delete a cheat by ID
   async delete(id: string) {
-    const e = await this.prisma.plan.findMany({
-      where: { cheatId: id },
-    });
     // const existingTransactions = await this.prisma.transaction.findFirst({
     //   where: {
     //     cheatId: id,
@@ -268,9 +265,9 @@ export class CheatService {
     //     'The Cheat cannot be deleted because it has transactions.',
     //   );
     // }
-    await this.prisma.plan.deleteMany({
-      where: { cheatId: id },
-    });
+    // await this.prisma.plan.deleteMany({
+    //   where: { cheatId: id },
+    // });
     await this.prisma.cheat.update({
       where: { id },
       data: { isDeleted: true },
@@ -304,13 +301,13 @@ export class CheatService {
       },
       data: { isDeleted: true },
     });
-    await this.prisma.plan.deleteMany({
-      where: {
-        cheatId: {
-          in: ids,
-        },
-      },
-    });
+    // await this.prisma.plan.deleteMany({
+    //   where: {
+    //     cheatId: {
+    //       in: ids,
+    //     },
+    //   },
+    // });
     return true;
   }
 
