@@ -347,7 +347,7 @@ export class CheckoutService {
       where: { id: transaction.id },
       data: { isVisited: true },
     });
-    if (!transaction.isVisited) return transaction;
+    // if (!transaction.isVisited) return transaction;
     return null;
   }
 
