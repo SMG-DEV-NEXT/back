@@ -341,6 +341,7 @@ export class CheckoutService {
       where: { orderId: transactionId },
       include: { cheat: true },
     });
+    console.log('Previewing transaction:', transactionId, transaction);
     if (!transaction)
       throw new UnprocessableEntityException('The product already opened');
     await this.prisma.transaction.update({
