@@ -349,7 +349,7 @@ export class CheckoutService {
       data: { isVisited: true },
     });
     // if (!transaction.isVisited) return transaction;
-    return null;
+    return transaction;
   }
 
   async getTransactionsClient(
