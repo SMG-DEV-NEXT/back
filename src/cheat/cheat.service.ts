@@ -590,4 +590,18 @@ export class CheatService {
     }
     return { data, allCatalogs };
   }
+
+  getDeletedCheats() {
+    return this.prisma.cheat.findMany({
+      where: { isDeleted: true },
+      include: { catalog: true },
+    });
+  }
+
+  restoreCheat(id: string) {
+    return this.prisma.cheat.update({
+      where: { id },
+      data: { isDeleted: false },
+    });
+  }
 }

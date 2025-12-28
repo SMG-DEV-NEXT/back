@@ -29,6 +29,16 @@ import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 export class CheatController {
   constructor(private readonly cheatService: CheatService) {}
 
+  @Post('/restore')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async restoreCheat(@Body() { id }: { id: string }) {
+    try {
+      return this.cheatService.restoreCheat(id);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async create(@Body() createCheatDto: CreateCheatDto) {
@@ -72,6 +82,16 @@ export class CheatController {
   async getCheatStatusData(@Query() params: GetStatusCheatsDto) {
     try {
       return this.cheatService.getCheatStatusPageData(params);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Get('/deleted')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async getDeletedCheats() {
+    try {
+      return this.cheatService.getDeletedCheats();
     } catch (error) {
       await sendErrorNotification(error);
     }

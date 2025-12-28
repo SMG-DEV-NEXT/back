@@ -195,14 +195,14 @@ export class CheckoutService {
         },
       });
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      // if (process.env.FRONT_URL === 'http://localhost:3000') {
-      //   console.log('Development mode: Overriding payUrl to localhost');
-      //   await this.handleCallback({
-      //     MERCHANT_ORDER_ID: orderId,
-      //   });
-      //   const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
-      //   return payUrl;
-      // }
+      if (process.env.FRONT_URL === 'http://localhost:3000') {
+        console.log('Development mode: Overriding payUrl to localhost');
+        await this.handleCallback({
+          MERCHANT_ORDER_ID: orderId,
+        });
+        const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
+        return payUrl;
+      }
       let payUrl = '';
       switch (data.methodPay) {
         case 'fk':
