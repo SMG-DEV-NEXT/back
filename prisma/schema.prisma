@@ -208,7 +208,7 @@ model Transaction {
   reseller   String?
   user       User?     @relation(fields: [userId], references: [id])
   userId     String?
-  cheat      Cheat     @relation(fields: [cheatId], references: [id])
+  cheat      Cheat?     @relation(fields: [cheatId], references: [id])
   cheatId    String
   type       String   
   price      Float
