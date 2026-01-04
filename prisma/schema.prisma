@@ -48,6 +48,8 @@ model Catalog {
   cheats   Cheat[]
   stats    Stats[]
   isDeleted Boolean @default(false)
+  seoRu    String?
+  seoEn    String?
 }
 
 model Stats {
