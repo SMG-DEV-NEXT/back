@@ -172,9 +172,64 @@ export class CheatService {
     const dayCount = cheat.plan.day?.keys.length;
     const weekCount = cheat.plan.week?.keys.length;
     const monthCount = cheat.plan.month?.keys.length;
+    let recomendetions = [];
     delete cheat.plan.day?.keys;
     delete cheat.plan.week?.keys;
     delete cheat.plan.month?.keys;
+    if (cheat.showOtherCheats === true) {
+      const cheatsForRecomendetion = await this.prisma.cheat.findMany({
+        where: {
+          NOT: { id: cheat.id },
+          status: 'published',
+          isDeleted: false,
+          catalogId: cheat.catalogId,
+        },
+        include: {
+          catalog: {
+            select: {
+              link: true,
+            },
+          },
+          plan: {
+            include: {
+              day: {
+                select: this.fields,
+              },
+              week: {
+                select: this.fields,
+              },
+              month: {
+                select: this.fields,
+              },
+            },
+          },
+        },
+        take: 4,
+      });
+      recomendetions = [...cheatsForRecomendetion].map((cheat) => ({
+        ...cheat,
+        plan: {
+          day: {
+            id: cheat.plan.day?.id,
+            price: cheat.plan.day?.price,
+            prcent: cheat.plan.day?.prcent,
+            keysCount: cheat.plan.day?.keys?.length,
+          },
+          week: {
+            id: cheat.plan.week?.id,
+            price: cheat.plan.week?.price,
+            prcent: cheat.plan.week?.prcent,
+            keysCount: cheat.plan.week?.keys?.length,
+          },
+          month: {
+            id: cheat.plan.month?.id,
+            price: cheat.plan.month?.price,
+            prcent: cheat.plan.month?.prcent,
+            keysCount: cheat.plan.month?.keys?.length,
+          },
+        },
+      }));
+    }
     if (user) {
       const commentAccess = await this.prisma.transaction.findFirst({
         where: {
@@ -187,6 +242,7 @@ export class CheatService {
         dayCount,
         weekCount,
         monthCount,
+        recomendetions,
         refUser,
         commentAccess: !!commentAccess,
       };
@@ -197,6 +253,7 @@ export class CheatService {
       dayCount,
       weekCount,
       monthCount,
+      recomendetions,
       refUser,
       commentAccess: false,
     };

@@ -131,6 +131,7 @@ model Cheat {
   h1En           String? @default("")
   updatedAt      DateTime @updatedAt
   isDeleted      Boolean @default(false)
+  showOtherCheats Boolean? @default(false)
 }
 
 model Comment {

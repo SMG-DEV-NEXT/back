@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsEnum,
   IsOptional,
+  IsBoolean,
 } from 'class-validator';
 
 export type CheatVisibility = 'onUpdate' | 'closed' | 'work';
@@ -37,6 +38,8 @@ export class CreateCheatDto {
   @IsNumber() minimumPrice: number;
   @IsEnum(['onUpdate', 'closed', 'work'])
   visibility: CheatVisibility;
+  @IsBoolean()
+  showOtherCheats: boolean;
 }
 
 export class UpdateCheatDto {

@@ -45,14 +45,12 @@ import { guaranteSettings } from './guarante';
 // }
 
 async function main() {
-  await prisma.cheat.updateMany({
+  const result = await prisma.cheat.updateMany({
     where: {},
-    data: { isDeleted: false },
+    data: { showOtherCheats: false },
   });
-  await prisma.catalog.updateMany({
-    where: {},
-    data: { isDeleted: false },
-  });
+
+  console.log(`Updated rows: ${result.count}`);
 }
 main()
   .catch((e) => {
