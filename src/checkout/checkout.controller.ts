@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   HttpCode,
-  HttpStatus,
   Param,
   Post,
   Query,
@@ -16,8 +15,6 @@ import { CheckoutDto } from './dto';
 import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
-import * as crypto from 'crypto';
-import { Transaction } from 'mongodb';
 import { generateTransaction } from 'src/utils/generateTransaction';
 const WHITELIST = new Set([
   '168.119.157.136',
@@ -41,7 +38,7 @@ function getClientIp(req: Request): string {
 }
 @Controller('checkout')
 export class CheckoutController {
-  constructor(private readonly checkoutService: CheckoutService) {}
+  constructor(private readonly checkoutService: CheckoutService) { }
   @Post()
   async checkout(@Body() data: CheckoutDto, @Req() req: any) {
     try {
@@ -90,6 +87,24 @@ export class CheckoutController {
     //   return res.status(403).send('hack');
     // }
     return this.checkoutService.handleCallback(body);
+  }
+
+  @Post('payments/b2pay/callback')
+  async b2payCallback(@Body() body: any) {
+    console.log('B2Pay callback:', body);
+
+    const { orderNumber, status } = body;
+
+    if (!orderNumber) return { ok: false };
+
+    // Only mark paid when status is success
+    if (status === 'success') {
+      await this.checkoutService.handleCallback({
+        MERCHANT_ORDER_ID: orderNumber,
+      });
+    }
+
+    return { ok: true };
   }
 
   @Get('document')

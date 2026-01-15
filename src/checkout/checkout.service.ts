@@ -22,7 +22,7 @@ export class CheckoutService {
     private prisma: PrismaService,
     private mail: MailService,
     private readonly httpService: HttpService,
-  ) {}
+  ) { }
   async sendMail(transaction: Transaction) {
     try {
       const html = generatorAfterCheckoutMail(transaction);
@@ -102,6 +102,49 @@ export class CheckoutService {
       console.log(err.response.data.errors);
     }
   }
+
+  async createPaymentB2Pay(
+    orderId: string,
+    amount: number,
+    currency: string,
+    email: string,
+    ip: string,
+  ) {
+    try {
+      const res = await axios.post(
+        process.env.B2PAY_API_URL, // e.g. https://payment.b2pay.io/api/v1/payment
+        {
+          amount: amount.toFixed(2),
+          currency,
+          description: `Payment for order #${orderId}`,
+          orderNumber: orderId,
+          customerType: 'new',
+          customerIP: ip,
+          customerEmail: email,
+          callbackUrl: `${process.env.BACKEND_URL}/payments/b2pay/callback`,
+          successUrl: `${process.env.FRONT_URL}/payment/success?orderId=${orderId}`,
+          failUrl: `${process.env.FRONT_URL}/payment/fail?orderId=${orderId}`,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.B2PAY_TOKEN}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        },
+      );
+
+      if (!res.data?.success || !res.data?.paymentData?.link) {
+        throw new Error('B2Pay invalid response');
+      }
+
+      return res.data.paymentData.link; // user will be redirected here
+    } catch (err) {
+      console.error('B2Pay error:', err?.response?.data || err);
+      throw new BadGatewayException('B2Pay payment failed');
+    }
+  }
+
 
   async initiatePayment(
     data: CheckoutDto,
@@ -195,14 +238,14 @@ export class CheckoutService {
         },
       });
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      if (process.env.FRONT_URL === 'http://localhost:3000') {
-        console.log('Development mode: Overriding payUrl to localhost');
-        await this.handleCallback({
-          MERCHANT_ORDER_ID: orderId,
-        });
-        const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
-        return payUrl;
-      }
+      // if (process.env.FRONT_URL === 'http://localhost:3000') {
+      //   console.log('Development mode: Overriding payUrl to localhost');
+      //   await this.handleCallback({
+      //     MERCHANT_ORDER_ID: orderId,
+      //   });
+      //   const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
+      //   return payUrl;
+      // }
       let payUrl = '';
       switch (data.methodPay) {
         case 'fk':
@@ -220,6 +263,15 @@ export class CheckoutService {
             orderId,
             currency: data.currency,
           });
+          break;
+        case 'b2pay':
+          payUrl = await this.createPaymentB2Pay(
+            orderId,
+            finalPrice,
+            data.currency,
+            transaction.email,
+            ip,
+          );
           break;
       }
       // await this.handleCallback({
@@ -241,6 +293,8 @@ export class CheckoutService {
       throw new BadGatewayException(error);
     }
   }
+
+
 
   async handleCallback(data: any) {
     try {
