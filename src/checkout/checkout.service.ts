@@ -76,7 +76,7 @@ export class CheckoutService {
     return payUrl;
   }
 
-  async createBill({ amount, orderId, currency }) {
+  async createBill({ amount, orderId }) {
     try {
       const form = new FormData();
       form.append('amount', amount);
@@ -84,7 +84,7 @@ export class CheckoutService {
       form.append('description', 'Покупка товара');
       form.append('type', 'normal');
       form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
-      form.append('currency_in', currency);
+      form.append('currency_in', 'RUB');
       form.append('custom', '');
       form.append('payer_pays_commission', '1');
       form.append('name', 'Платёж');
@@ -264,7 +264,6 @@ export class CheckoutService {
           payUrl = await this.createBill({
             amount: finalPrice,
             orderId,
-            currency: data.currency,
           });
           break;
         case 'b2pay':
