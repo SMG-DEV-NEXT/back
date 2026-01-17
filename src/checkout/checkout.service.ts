@@ -113,7 +113,6 @@ export class CheckoutService {
   ) {
     try {
       const agent = new http.Agent({ family: 4 });
-
       const res = await axios.post(
         process.env.B2PAY_API_URL, // e.g. https://payment.b2pay.io/api/v1/payment
         {
@@ -124,8 +123,8 @@ export class CheckoutService {
           customerType: 'new',
           customerIP: ip,
           customerEmail: email,
-          callbackUrl: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
-          successUrl: `${process.env.FRONT_URL}?MERCHANT_ORDER_ID=${orderId}`,
+          callbackUrl: `${process.env.BACKEND_URL}/checkout/callback`,
+          successUrl: `${process.env.FRONT_URL}/preview/${orderId}`,
           failUrl: `${process.env.FRONT_URL}/fail`,
         },
         {
@@ -299,10 +298,10 @@ export class CheckoutService {
   }
 
 
-
   async handleCallback(data: any) {
     try {
       const { MERCHANT_ORDER_ID, InvId, Status } = data;
+      console.log(data, "payment callback data")
       let transaction;
       if (InvId && Status === 'SUCCESS') {
         transaction = await this.prisma.transaction.findFirst({
