@@ -89,7 +89,7 @@ export class CheckoutController {
     return this.checkoutService.handleCallback(body);
   }
 
-  @Post('payments/b2pay/callback')
+  @Post('/b2pay/callback')
   async b2payCallback(@Body() body: any) {
     console.log('B2Pay callback:', body);
 

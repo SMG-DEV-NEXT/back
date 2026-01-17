@@ -15,6 +15,7 @@ import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
+import * as http from 'http';
 
 @Injectable()
 export class CheckoutService {
@@ -111,6 +112,8 @@ export class CheckoutService {
     ip: string,
   ) {
     try {
+      const agent = new http.Agent({ family: 4 });
+
       const res = await axios.post(
         process.env.B2PAY_API_URL, // e.g. https://payment.b2pay.io/api/v1/payment
         {
@@ -121,9 +124,9 @@ export class CheckoutService {
           customerType: 'new',
           customerIP: ip,
           customerEmail: email,
-          callbackUrl: `${process.env.BACKEND_URL}/payments/b2pay/callback`,
-          successUrl: `${process.env.FRONT_URL}/payment/success?orderId=${orderId}`,
-          failUrl: `${process.env.FRONT_URL}/payment/fail?orderId=${orderId}`,
+          callbackUrl: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
+          successUrl: `${process.env.FRONT_URL}?MERCHANT_ORDER_ID=${orderId}`,
+          failUrl: `${process.env.FRONT_URL}/fail`,
         },
         {
           headers: {
@@ -131,6 +134,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
+          httpAgent: agent,
         },
       );
 
