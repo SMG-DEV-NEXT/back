@@ -91,19 +91,13 @@ export class CheckoutController {
 
   @Post('/b2pay/callback')
   async b2payCallback(@Body() body: any) {
-    console.log('B2Pay callback:', body);
-
     const { orderNumber, status } = body;
-
     if (!orderNumber) return { ok: false };
-
-    // Only mark paid when status is success
-    if (status === 'success') {
+    if (status === 'approved') {
       await this.checkoutService.handleCallback({
         MERCHANT_ORDER_ID: orderNumber,
       });
     }
-
     return { ok: true };
   }
 

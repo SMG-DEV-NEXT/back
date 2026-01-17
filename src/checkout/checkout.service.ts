@@ -123,7 +123,7 @@ export class CheckoutService {
           customerType: 'new',
           customerIP: ip,
           customerEmail: email,
-          callbackUrl: `${process.env.BACKEND_URL}/checkout/callback`,
+          callbackUrl: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
           successUrl: `${process.env.FRONT_URL}/preview/${orderId}`,
           failUrl: `${process.env.FRONT_URL}/fail`,
         },
@@ -273,7 +273,7 @@ export class CheckoutService {
             finalPrice,
             data.currency,
             transaction.email,
-            ip,
+            ip
           );
           break;
       }
@@ -301,7 +301,6 @@ export class CheckoutService {
   async handleCallback(data: any) {
     try {
       const { MERCHANT_ORDER_ID, InvId, Status } = data;
-      console.log(data, "payment callback data")
       let transaction;
       if (InvId && Status === 'SUCCESS') {
         transaction = await this.prisma.transaction.findFirst({
@@ -398,7 +397,6 @@ export class CheckoutService {
       where: { orderId: transactionId },
       include: { cheat: true },
     });
-    console.log('Previewing transaction:', transactionId, transaction);
     if (!transaction)
       throw new UnprocessableEntityException('The product already opened');
     await this.prisma.transaction.update({
