@@ -195,17 +195,14 @@ export class CheckoutService {
       if (promoCode && promoCode.count < promoCode.maxActivate) {
         price -= (initialPrice / 100) * promoCode.percent;
       }
-
       if (isReseller && isReseller.email === user.email) {
         price -= (initialPrice / 100) * isReseller.prcent;
       } else {
         isReseller = null;
       }
-
       if (cheat.plan[data.type].prcent > 0) {
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
       }
-
       const finalPrice =
         data.currency === 'USD'
           ? Math.round(price * data.count) / data.usd
@@ -262,7 +259,7 @@ export class CheckoutService {
           break;
         case 'pally':
           payUrl = await this.createBill({
-            amount: finalPrice,
+            amount: Math.round(price * data.count),
             orderId,
           });
           break;
@@ -358,19 +355,19 @@ export class CheckoutService {
         await this.prisma.transaction.update({
           where: { id: txId },
           //@ts-ignore
-          data: { status: 'error' },
+          data: { status: 'error', jsonPayload: JSON.stringify(data) },
         });
         return;
       }
 
       const checkoutKeyses = keyses.slice(0, transaction.count);
-
       await this.prisma.transaction.update({
         where: { id: txId },
         data: {
           //@ts-ignore
           status: 'success',
           codes: checkoutKeyses,
+          jsonPayload: JSON.stringify(data)
         },
       });
       await this.prisma.period.update({
@@ -387,6 +384,7 @@ export class CheckoutService {
       });
       return 'YES';
     } catch (error) {
+      console.log(error)
       throw new BadGatewayException(error);
     }
   }
