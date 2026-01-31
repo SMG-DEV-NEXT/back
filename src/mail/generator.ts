@@ -90,8 +90,8 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
 
                 <!-- Коды -->
                 ${transaction.codes
-                  .map(
-                    (e, i) => `
+      .map(
+        (e, i) => `
                 <table width="100%" cellpadding="10" cellspacing="0" style="background-color:#181A1F; border:1px solid #3B3E45; margin-bottom:6px;">
                   <tr>
                     <td style="font-size:16px; color:#E9E3F6;">
@@ -100,8 +100,8 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                   </tr>
                 </table>
                 `,
-                  )
-                  .join('')}
+      )
+      .join('')}
 
                 <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:20px; font-size:15px; color:#E9E3F6;">
                   <tr>
@@ -159,7 +159,7 @@ export const generateForRegistrationRu = (url: string) => {
             <tr>
               <td style="color: #E9E3F6; font-size: 16px; line-height: 1.6; text-align: left;">
                 <p>Здравствуйте,</p>
-                <p>Спасибо за регистрацию на <a href="https://smgcheats.com" style="color: #8B6DCA; text-decoration: underline;">SMGCHEATS.COM!</a></p>
+                <p>Спасибо за регистрацию на <a href="https://dev.smgcheats.com" style="color: #8B6DCA; text-decoration: underline;">SMGCHEATS.COM!</a></p>
               </td>
             </tr>
             <tr>
@@ -214,7 +214,7 @@ export const generateForRegistrationEn = (url: string) => {
             <tr>
               <td style="color: #E9E3F6; font-size: 16px; line-height: 1.6; text-align: left;">
                 <p>Hello,</p>
-                <p>Thank you for registering at <a href="https://smgcheats.com" style="color: #8B6DCA; text-decoration: underline;">SMGCHEATS.COM!</a></p>
+                <p>Thank you for registering at <a href="https://dev.smgcheats.com" style="color: #8B6DCA; text-decoration: underline;">SMGCHEATS.COM!</a></p>
               </td>
             </tr>
             <tr>
