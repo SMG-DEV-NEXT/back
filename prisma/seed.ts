@@ -44,13 +44,30 @@ import { guaranteSettings } from './guarante';
 //   });
 // }
 
-async function main() {
-  const result = await prisma.cheat.updateMany({
-    where: {},
-    data: { showOtherCheats: false },
-  });
+function randomText(length = 10): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  return Array.from({ length }, () =>
+    chars.charAt(Math.floor(Math.random() * chars.length))
+  ).join('');
+}
 
-  console.log(`Updated rows: ${result.count}`);
+async function main() {
+  const periods = await prisma.period.findMany();
+
+  for (const period of periods) {
+    const newKeys = period.keys.map(() => randomText());
+
+    await prisma.period.update({
+      where: {
+        id: period.id,
+      },
+      data: {
+        keys: newKeys,
+      },
+    });
+  }
+
+  console.log(`✅ Updated ${periods.length} periods`);
 }
 main()
   .catch((e) => {
