@@ -16,6 +16,7 @@ import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
 import * as http from 'http';
+import { B2PayService } from 'src/b2pay/b2pay.service';
 
 @Injectable()
 export class CheckoutService {
@@ -23,6 +24,7 @@ export class CheckoutService {
     private prisma: PrismaService,
     private mail: MailService,
     private readonly httpService: HttpService,
+    private readonly b2payService: B2PayService
   ) { }
   async sendMail(transaction: Transaction) {
     try {
@@ -112,7 +114,31 @@ export class CheckoutService {
     ip: string,
   ) {
     try {
+      const invoice = await this.b2payService.createInvoice({
+        amount: amount,
+        customerId: crypto.randomUUID(),
+        currency,
+        description: `Payment for order #${orderId}`,
+        notificationUrl: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
+        returnUrl: `${process.env.FRONT_URL}/preview/${orderId}`,
+      });
+      console.log(invoice)
       const agent = new http.Agent({ family: 4 });
+      const tokenResponse = await axios.post(
+        process.env.B2PAY_TOKEN_URL,
+        {
+          apiKey: process.env.B2PAY_TOKEN,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          httpAgent: agent,
+        },
+      );
+      console.log('B2Pay token response:', tokenResponse.data);
+      return false
       const res = await axios.post(
         process.env.B2PAY_API_URL, // e.g. https://payment.b2pay.io/api/v1/payment
         {
