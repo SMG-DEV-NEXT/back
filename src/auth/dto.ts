@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -44,6 +45,10 @@ export class LoginDto {
   code?: string;
 
   rememberMe: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  fromAdmin: boolean;
 }
 
 export class ForgetDtoStep1 {
