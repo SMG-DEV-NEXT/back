@@ -61,7 +61,7 @@ async function bootstrap() {
     }),
   ); // Adds security headers
   app.enableCors({
-    origin: process.env.FRONT_URL, // Replace with frontend URL
+    origin: [process.env.FRONT_URL, process.env.ADMIN_URL], // Replace with frontend URL
     credentials: true, // Allow cookies
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization',

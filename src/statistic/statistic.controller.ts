@@ -6,9 +6,10 @@ import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('statistic')
 export class StatisticController {
-  constructor(private readonly statisticService: StatisticService) {}
+  constructor(private readonly statisticService: StatisticService) { }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getRevenueTrend() {
     try {
       return this.statisticService.getStats();
@@ -18,6 +19,7 @@ export class StatisticController {
   }
 
   @Get('/chart')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getChartData(
     @Query('range') range?: 'week' | 'month',
     @Query('from') from?: string,

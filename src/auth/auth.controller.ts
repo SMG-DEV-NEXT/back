@@ -7,6 +7,7 @@ import {
   UseGuards,
   Req,
   UnprocessableEntityException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Request, Response } from 'express';
@@ -33,7 +34,7 @@ export class AuthController {
     private readonly sanitizeService: SanitizeService,
     private prisma: PrismaService,
     private readonly twoFactorAuthService: TwoFactorAuthService,
-  ) {}
+  ) { }
 
   // Register user
   @Post('register')
@@ -88,6 +89,10 @@ export class AuthController {
       }
       const { access_token, refresh_token, user } = data;
       const { password: p, ...userWithoutPassword } = user;
+      if (loginDto.fromAdmin && !userWithoutPassword.isAdmin) {
+        throw new UnauthorizedException('user_not_found');
+
+      }
       // if (!rememberMe) {
       //   res.cookie('access', access_token, {
       //     httpOnly: true, // Prevent access via JavaScript (XSS protection)
@@ -141,6 +146,7 @@ export class AuthController {
           id: true,
           name: true,
           email: true,
+          role: true,
           logo: true,
           twoFactorSecret: true,
           isTwoFactorEnabled: true,
@@ -216,7 +222,7 @@ export class AuthController {
         request.user.id,
       );
       return res.status(200).send({ qrCode, secret });
-    } catch (err) {}
+    } catch (err) { }
   }
 
   @Post('verify-fa')

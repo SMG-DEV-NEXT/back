@@ -23,6 +23,7 @@ model User {
   token              Token?
   accept             Boolean? @default(false)
   transactions Transaction[]
+  role               String @default("user")
 }
 
 model Token {
