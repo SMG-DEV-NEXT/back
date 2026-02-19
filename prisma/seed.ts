@@ -45,9 +45,9 @@ import { guaranteSettings } from './guarante';
 // }
 
 async function main() {
-  const result = await prisma.cheat.updateMany({
-    where: {},
-    data: { showOtherCheats: false },
+  const result = await prisma.user.updateMany({
+    where: { email: "support@smg.com" },
+    data: { accept: true },
   });
 
   console.log(`Updated rows: ${result.count}`);

@@ -146,6 +146,7 @@ export class AuthController {
           id: true,
           name: true,
           email: true,
+          role: true,
           logo: true,
           twoFactorSecret: true,
           isTwoFactorEnabled: true,

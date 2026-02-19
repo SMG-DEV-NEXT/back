@@ -49,6 +49,7 @@ export class AuthService {
         name,
         email,
         password: hashedPassword,
+        role: "user",
         raiting: '0',
         isTwoFactorEnabled: false,
         resetCode: '',
