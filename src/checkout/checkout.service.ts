@@ -517,7 +517,16 @@ export class CheckoutService {
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        cheat: true,
+        cheat: {
+          include: {
+            catalog: {
+              select: {
+                link: true,
+                title: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

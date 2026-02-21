@@ -52,22 +52,22 @@ function randomText(length = 10): string {
 }
 
 async function main() {
-  const periods = await prisma.period.findMany();
-
-  for (const period of periods) {
-    const newKeys = period.keys.map(() => randomText());
-
+  const allPlans = await prisma.plan.findMany();
+  allPlans.forEach(async (plan) => {
     await prisma.period.update({
-      where: {
-        id: period.id,
-      },
-      data: {
-        keys: newKeys,
-      },
-    });
-  }
-
-  console.log(`✅ Updated ${periods.length} periods`);
+      where: { id: plan.dayId },
+      data: { titleRu: "1 дней", titleEn: "1 days" }
+    })
+    await prisma.period.update({
+      where: { id: plan.weekId },
+      data: { titleRu: "7 дней", titleEn: "7 days" }
+    })
+    await prisma.period.update({
+      where: { id: plan.monthId },
+      data: { titleRu: "30 дней", titleEn: "30 days" }
+    })
+  })
+  console.log("Periods updated")
 }
 main()
   .catch((e) => {

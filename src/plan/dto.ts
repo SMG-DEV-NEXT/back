@@ -22,6 +22,8 @@ export class UpdatePlanDto {
     id: string;
     price: number;
     prcent: number;
+    titleRu: string;
+    titleEn: string;
   };
 
   @IsObject()
@@ -30,6 +32,8 @@ export class UpdatePlanDto {
     id: string;
     price: number;
     prcent: number;
+    titleRu: string;
+    titleEn: string;
   };
 
   @IsObject()
@@ -39,6 +43,8 @@ export class UpdatePlanDto {
     id: string;
     price: number;
     prcent: number;
+    titleRu: string;
+    titleEn: string;
   };
 }
 
