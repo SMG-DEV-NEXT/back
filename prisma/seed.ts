@@ -44,13 +44,30 @@ import { guaranteSettings } from './guarante';
 //   });
 // }
 
-async function main() {
-  const result = await prisma.user.updateMany({
-    where: { email: "support@smg.com" },
-    data: { accept: true },
-  });
+function randomText(length = 10): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  return Array.from({ length }, () =>
+    chars.charAt(Math.floor(Math.random() * chars.length))
+  ).join('');
+}
 
-  console.log(`Updated rows: ${result.count}`);
+async function main() {
+  const allPlans = await prisma.plan.findMany();
+  allPlans.forEach(async (plan) => {
+    await prisma.period.update({
+      where: { id: plan.dayId },
+      data: { titleRu: "1 дней", titleEn: "1 days" }
+    })
+    await prisma.period.update({
+      where: { id: plan.weekId },
+      data: { titleRu: "7 дней", titleEn: "7 days" }
+    })
+    await prisma.period.update({
+      where: { id: plan.monthId },
+      data: { titleRu: "30 дней", titleEn: "30 days" }
+    })
+  })
+  console.log("Periods updated")
 }
 main()
   .catch((e) => {

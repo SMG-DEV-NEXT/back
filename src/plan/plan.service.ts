@@ -4,20 +4,20 @@ import { CreatePlanDto, UpdatePlanDto } from './dto';
 
 @Injectable()
 export class PlanService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Create a new plan
   async create(createPlanDto: CreatePlanDto) {
     const periodDay = await this.prisma.period.create({
-      data: { keys: [], price: 0, prcent: 0 },
+      data: { keys: [], price: 0, prcent: 0, titleRu: "1 дней", titleEn: "1 days" },
     });
 
     const periodWeek = await this.prisma.period.create({
-      data: { keys: [], price: 0, prcent: 0 },
+      data: { keys: [], price: 0, prcent: 0, titleRu: "7 дней", titleEn: "7 days" },
     });
 
     const periodMonth = await this.prisma.period.create({
-      data: { keys: [], price: 0, prcent: 0 },
+      data: { keys: [], price: 0, prcent: 0, titleRu: "30 дней", titleEn: "30 days" },
     });
 
     return this.prisma.plan.create({
@@ -81,6 +81,8 @@ export class PlanService {
           keys: day.keys.filter((e) => e.length > 0),
           prcent: day.prcent,
           price: day.price,
+          titleRu: day.titleRu,
+          titleEn: day.titleEn,
         },
       });
       await this.prisma.period.update({
@@ -89,6 +91,8 @@ export class PlanService {
           keys: week.keys.filter((e) => e.length > 0),
           prcent: week.prcent,
           price: week.price,
+          titleRu: week.titleRu,
+          titleEn: week.titleEn,
         },
       });
       await this.prisma.period.update({
@@ -97,6 +101,8 @@ export class PlanService {
           keys: month.keys.filter((e) => e.length > 0),
           prcent: month.prcent,
           price: month.price,
+          titleRu: month.titleRu,
+          titleEn: month.titleEn,
         },
       });
       return true;

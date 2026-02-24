@@ -90,6 +90,8 @@ model Period {
   keys         String[]
   price        Float
   prcent       Float
+  titleRu      String
+  titleEn      String
   plansAsDay   Plan[] @relation(name: "DayPeriod")
   plansAsWeek  Plan[] @relation(name: "WeekPeriod")
   plansAsMonth Plan[] @relation(name: "MonthPeriod")
