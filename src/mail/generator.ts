@@ -128,6 +128,20 @@ export const generatorAfterCheckoutMail = (transaction: Transaction) => {
                     <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Price after discount' : 'Цена после скидки'}:</td>
                     <td>${transaction.currency === 'USD' ? `$${Number(transaction.checkoutedPrice).toFixed(2)}` : `${transaction.checkoutedPrice} ₽`}</td>
                   </tr>
+                  ${(transaction as any).isUsedBalance
+      ? `
+                  <tr>
+                    <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Used balance' : 'Использован баланс'}:</td>
+                    <td>${lang === 'en' ? 'Yes' : 'Да'}</td>
+                  </tr>
+                  <tr>
+                    <td style="color:#8B6DCA; font-weight:bold;">${lang === 'en' ? 'Balance used' : 'Списано с баланса'}:</td>
+                    <td>${transaction.currency === 'USD'
+        ? `$${Number((transaction as any).balanceDiscount || 0).toFixed(2)}`
+        : `${Number((transaction as any).balanceDiscount || 0).toFixed(2)} ₽`}</td>
+                  </tr>
+                  `
+      : ''}
                 </table>
                 <a href="https://cdn.smgcheats.com/client.php">Loader</a>
               </td>

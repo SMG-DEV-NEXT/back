@@ -39,6 +39,24 @@ function getClientIp(req: Request): string {
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) { }
+
+  private getClientInfo(req: any) {
+    const forwardedFor = req.headers['x-forwarded-for']?.toString();
+    const ip = forwardedFor?.split(',')[0]?.trim() || req.socket?.remoteAddress;
+
+    return {
+      ip,
+      userAgent: req.headers['user-agent'] || null,
+      origin: req.headers.origin || null,
+      referer: req.headers.referer || null,
+      host: req.headers.host || null,
+      language: req.headers['accept-language'] || null,
+      secChUa: req.headers['sec-ch-ua'] || null,
+      secChUaPlatform: req.headers['sec-ch-ua-platform'] || null,
+      secChUaMobile: req.headers['sec-ch-ua-mobile'] || null,
+    };
+  }
+
   @Post()
   async checkout(@Body() data: CheckoutDto, @Req() req: any) {
     try {
@@ -46,7 +64,12 @@ export class CheckoutController {
       const ip =
         req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
         req.socket.remoteAddress;
-      return this.checkoutService.initiatePayment(data, ip, user);
+      return this.checkoutService.initiatePayment(
+        data,
+        ip,
+        user,
+        this.getClientInfo(req),
+      );
     } catch (error) {
       await sendErrorNotification(error);
     }

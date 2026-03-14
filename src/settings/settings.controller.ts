@@ -1,14 +1,17 @@
 import { Controller, Get, Param, Body, Put, UseGuards } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { AuthGuard } from '@nestjs/passport';
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('settings')
 export class SettingsController {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsService) { }
 
   @Put(':title')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async updateSetting(
     @Param('title') title: string,

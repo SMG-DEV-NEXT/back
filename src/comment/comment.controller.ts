@@ -11,6 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { CommentService } from './comment.service';
 import {
@@ -23,7 +25,7 @@ import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('comments')
 export class CommentController {
-  constructor(private readonly commentService: CommentService) {}
+  constructor(private readonly commentService: CommentService) { }
 
   @Post('create')
   @UseGuards(AuthGuard('jwt'))
@@ -37,6 +39,7 @@ export class CommentController {
   }
 
   @Delete('remove/:id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteComment(@Param() params: { id: string }) {
     try {
@@ -47,6 +50,7 @@ export class CommentController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getComments(@Query() query: GetCommentsDto) {
     try {
@@ -57,6 +61,7 @@ export class CommentController {
   }
 
   @Get(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getComment(@Param() params: getComment) {
     try {
@@ -67,6 +72,7 @@ export class CommentController {
   }
 
   @Put(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async saveComment(@Param() params: getComment, @Body() dto: UpdateComment) {
     try {

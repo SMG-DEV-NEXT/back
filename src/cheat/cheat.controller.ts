@@ -20,16 +20,19 @@ import {
   ParamsIdDto,
   UpdateCheatDto,
 } from './dto';
+import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 @Controller('cheats')
 export class CheatController {
-  constructor(private readonly cheatService: CheatService) {}
+  constructor(private readonly cheatService: CheatService) { }
 
   @Post('/restore')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async restoreCheat(@Body() { id }: { id: string }) {
     try {
@@ -40,6 +43,7 @@ export class CheatController {
   }
 
   @Post()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async create(@Body() createCheatDto: CreateCheatDto) {
     try {
@@ -59,6 +63,7 @@ export class CheatController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAll() {
     try {
@@ -69,6 +74,7 @@ export class CheatController {
   }
 
   @Get('plans/:catalogId')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllWithPlans(@Param() params: ParamsFilterDto) {
     try {
@@ -88,6 +94,7 @@ export class CheatController {
   }
 
   @Get('/deleted')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getDeletedCheats() {
     try {
@@ -98,6 +105,7 @@ export class CheatController {
   }
 
   @Get(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getById(@Param() params: ParamsIdDto) {
     try {
@@ -123,6 +131,7 @@ export class CheatController {
   }
 
   @Put(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async update(
     @Param() params: ParamsIdDto,
@@ -136,6 +145,7 @@ export class CheatController {
   }
 
   @Delete('many')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteMany(@Body() ids: string[]) {
     try {
@@ -146,6 +156,7 @@ export class CheatController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async delete(@Param() params: ParamsIdDto) {
     try {

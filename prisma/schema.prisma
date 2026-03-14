@@ -24,6 +24,8 @@ model User {
   accept             Boolean? @default(false)
   transactions Transaction[]
   role               String @default("user")
+  balance            Float @default(0)
+  balanceHistory     BalanceHistory[]
 }
 
 model Token {
@@ -234,6 +236,8 @@ model Transaction {
   realPrice  Float
   methodPay  String
   jsonPayload   Json?
+  balanceDiscount Float @default(0)
+  isUsedBalance   Boolean @default(false)
 }
 
 model FaqBlock {
@@ -280,7 +284,17 @@ model Referral {
   createdAt     DateTime       @default(now())
   code          String         @unique
   owner         String         // Admin user ID or name
+  userAccountEmail String      @default("")
   prcentToPrice Int
   viewsCount    Int            @default(0)
   transactions  Transaction[]  @relation("ReferralTransactions")
+}
+
+model BalanceHistory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  type        String
+  information String
+  createdAt   DateTime @default(now())
 }

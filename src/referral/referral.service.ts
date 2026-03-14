@@ -11,7 +11,7 @@ import { MongoInvalidArgumentError } from 'mongodb';
 
 @Injectable()
 export class ReferralService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(dto: CreateReferralDto) {
     const find = await this.prisma.referral.findFirst({
@@ -26,6 +26,7 @@ export class ReferralService {
       data: {
         code: dto.code || this.generateReferralCode(15),
         owner: dto.owner,
+        userAccountEmail: dto.userAccountEmail || '',
         prcentToPrice: dto.prcentToPrice,
         viewsCount: 0,
       },
@@ -59,10 +60,30 @@ export class ReferralService {
   }
 
   async update(id: string, dto: UpdateReferralDto) {
-    return this.prisma.referral.update({
-      where: { id },
-      data: { ...dto },
-    });
+    if (dto.code) {
+      const existing = await this.prisma.referral.findFirst({
+        where: {
+          code: dto.code,
+          NOT: { id },
+        },
+      });
+
+      if (existing) {
+        throw new BadRequestException('Referral code already exists');
+      }
+    }
+
+    try {
+      return await this.prisma.referral.update({
+        where: { id },
+        data: { ...dto },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new BadRequestException('Referral code already exists');
+      }
+      throw error;
+    }
   }
 
   async findByOwner(ownerId: string) {

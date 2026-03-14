@@ -18,16 +18,19 @@ import {
   UpdateRequestDto,
   UpdateResellerDto,
 } from './dto';
+import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 @Controller('resellers')
 export class ResellerController {
-  constructor(private readonly resellerService: ResellerService) {}
+  constructor(private readonly resellerService: ResellerService) { }
 
   @Post()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async create(@Body() createDto: CreateResellerDto) {
     try {
@@ -38,6 +41,7 @@ export class ResellerController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async findAllPaginated(
     @Query('skip') skip = '0',
@@ -79,6 +83,7 @@ export class ResellerController {
   }
 
   @Get('/request')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllRequests(@Query('skip') skip = '0', @Query('take') take = '10') {
     try {
@@ -89,6 +94,7 @@ export class ResellerController {
   }
 
   @Delete('/request/:id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async removeRequest(@Param('id') id: string) {
     try {
@@ -122,6 +128,7 @@ export class ResellerController {
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async update(@Param('id') id: string, @Body() updateDto: UpdateResellerDto) {
     try {
@@ -132,6 +139,7 @@ export class ResellerController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async remove(@Param('id') id: string) {
     try {

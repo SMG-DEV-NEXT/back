@@ -10,18 +10,20 @@ import {
 } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import {
   CreateStatDto,
   GetAllStatsDto,
   GetAllStatsOfCatalog,
   UpdateStatsDto,
 } from './dto';
+import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('stats')
 export class StatsController {
-  constructor(private readonly statsService: StatsService) {}
+  constructor(private readonly statsService: StatsService) { }
 
   // 1. Get all games with count of stats
   @Get('/games')
@@ -48,6 +50,7 @@ export class StatsController {
 
   // 2. Get all stats of a catalog
   @Get('/admin')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllStats(@Query() query: GetAllStatsDto) {
     try {
@@ -85,7 +88,8 @@ export class StatsController {
   }
 
   // 4. Create a stat for a game (Only Admin)
-  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('/')
   async createStat(@Body() createStatsDto: CreateStatDto) {
     try {
@@ -99,7 +103,8 @@ export class StatsController {
   }
 
   // 5. Update a stat (Only Admin)
-  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Patch('/:statId')
   async updateStat(
     @Param('statId') statId: string,
