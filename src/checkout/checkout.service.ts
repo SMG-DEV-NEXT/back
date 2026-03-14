@@ -454,41 +454,48 @@ export class CheckoutService {
           });
 
           if (referralUser && referralUser.id !== transaction.userId) {
-            const referralBonus = Number(
-              ((transaction.checkoutedPrice || 0) * 0.1).toFixed(2),
+            const referralBonusPercent = Number(
+              (referral as any)?.prcentToBalance || 0,
             );
-            console.log(referralBonus, 222)
+            if (referralBonusPercent > 0) {
+              const referralBonus = Number(
+                (
+                  ((transaction.checkoutedPrice || 0) * referralBonusPercent) /
+                  100
+                ).toFixed(2),
+              );
 
-            if (referralBonus > 0) {
-              const balanceBefore = (referralUser as any).balance || 0;
-              const balanceAfter = balanceBefore + referralBonus;
+              if (referralBonus > 0) {
+                const balanceBefore = (referralUser as any).balance || 0;
+                const balanceAfter = balanceBefore + referralBonus;
 
-              await this.prisma.user.update({
-                where: { id: referralUser.id },
-                data: {
-                  balance: balanceAfter,
-                } as any,
-              });
+                await this.prisma.user.update({
+                  where: { id: referralUser.id },
+                  data: {
+                    balance: balanceAfter,
+                  } as any,
+                });
 
-              await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
-                action: 'REFERRAL_BONUS_CALLBACK',
-                balanceBefore,
-                balanceAfter,
-                bonusPercent: 10,
-                bonusAmount: referralBonus,
-                referralId: referral.id,
-                referralCode: referral.code,
-                referralOwner: referral.owner,
-                referralUserEmail: referral.userAccountEmail,
-                buyerEmail: transaction.email,
-                buyerUserId: transaction.userId || null,
-                transactionId: transaction.id,
-                orderId: transaction.orderId,
-                checkoutedPrice: transaction.checkoutedPrice,
-                currency: transaction.currency,
-                callbackPayload: data,
-                createdAt: new Date().toISOString(),
-              });
+                await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
+                  action: 'REFERRAL_BONUS_CALLBACK',
+                  balanceBefore,
+                  balanceAfter,
+                  bonusPercent: referralBonusPercent,
+                  bonusAmount: referralBonus,
+                  referralId: referral.id,
+                  referralCode: referral.code,
+                  referralOwner: referral.owner,
+                  referralUserEmail: referral.userAccountEmail,
+                  buyerEmail: transaction.email,
+                  buyerUserId: transaction.userId || null,
+                  transactionId: transaction.id,
+                  orderId: transaction.orderId,
+                  checkoutedPrice: transaction.checkoutedPrice,
+                  currency: transaction.currency,
+                  callbackPayload: data,
+                  createdAt: new Date().toISOString(),
+                });
+              }
             }
           }
         }

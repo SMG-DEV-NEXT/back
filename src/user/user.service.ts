@@ -30,31 +30,29 @@ export class UserService {
     page: number;
     limit: number;
   }) {
+    const where: any = search
+      ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ],
+      }
+      : {};
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
-        where: search
-          ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-          : {},
+        where,
         orderBy: { email: 'desc' },
         include: {
-          _count: {
-            select: {
-              transactions: true,
-            },
-          },
+          transactions: {
+            where: { status: 'success' },
+          }
         },
         skip: (page - 1) * limit,
         take: limit,
       }),
       this.prisma.user.count({
-        where: search
-          ? { name: { contains: search, mode: 'insensitive' } }
-          : {},
+        where,
       }),
     ]);
     return { data, total: Math.ceil(total / limit), page, limit };

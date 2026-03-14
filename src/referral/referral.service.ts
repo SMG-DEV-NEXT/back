@@ -28,8 +28,9 @@ export class ReferralService {
         owner: dto.owner,
         userAccountEmail: dto.userAccountEmail || '',
         prcentToPrice: dto.prcentToPrice,
+        prcentToBalance: dto.prcentToBalance || 0,
         viewsCount: 0,
-      },
+      } as any,
     });
   }
   generateReferralCode(length = 6) {

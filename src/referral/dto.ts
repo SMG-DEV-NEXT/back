@@ -14,6 +14,10 @@ export class CreateReferralDto {
 
   @IsInt()
   prcentToPrice: number;
+
+  @IsOptional()
+  @IsInt()
+  prcentToBalance?: number;
 }
 
 export class UpdateReferralDto {
@@ -32,4 +36,8 @@ export class UpdateReferralDto {
   @IsOptional()
   @IsInt()
   prcentToPrice?: number;
+
+  @IsOptional()
+  @IsInt()
+  prcentToBalance?: number;
 }

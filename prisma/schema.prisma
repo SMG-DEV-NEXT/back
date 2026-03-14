@@ -286,6 +286,7 @@ model Referral {
   owner         String         // Admin user ID or name
   userAccountEmail String      @default("")
   prcentToPrice Int
+  prcentToBalance Int          @default(0)
   viewsCount    Int            @default(0)
   transactions  Transaction[]  @relation("ReferralTransactions")
 }

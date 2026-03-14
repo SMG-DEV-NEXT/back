@@ -77,7 +77,7 @@ export class ReferralController {
   @Get('/:id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async getById(@Query('id') id) {
+  async getById(@Param('id') id: string) {
     try {
       return this.referralService.getById(id);
     } catch (error) {

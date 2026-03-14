@@ -29,6 +29,26 @@ export class AuthService {
     private recaptchaService: RecaptchaService,
   ) { }
 
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private async findUserByEmail<T = User>(
+    email: string,
+    options: any = {},
+  ) {
+    return this.prisma.user.findFirst({
+      ...options,
+      where: {
+        ...(options?.where || {}),
+        email: {
+          equals: this.normalizeEmail(email),
+          mode: 'insensitive',
+        },
+      },
+    });
+  }
+
   async register(
     name: string,
     email: string,
@@ -37,17 +57,16 @@ export class AuthService {
     token: string,
   ): Promise<User> {
     await this.recaptchaService.validate(token);
+    const trimmedEmail = email.trim();
     const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const existingUser = await this.findUserByEmail(trimmedEmail);
     if (existingUser) {
       throw new BadRequestException('email_already_exists');
     }
     const user = await this.prisma.user.create({
       data: {
         name,
-        email,
+        email: trimmedEmail,
         password: hashedPassword,
         role: "user",
         raiting: '0',
@@ -77,9 +96,7 @@ export class AuthService {
   }
 
   async resendEmail(email: string, lang: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.findUserByEmail(email);
     if (!user) {
       throw new BadRequestException('user_not_found');
     }
@@ -100,8 +117,7 @@ export class AuthService {
   }
 
   async login(email: string, password: string, code: string): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+    const user = await this.findUserByEmail(email, {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
     if (!user) {
@@ -214,7 +230,7 @@ export class AuthService {
   }
 
   async getUserByEmail(email: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.findUserByEmail(email);
     return user;
   }
 
@@ -298,11 +314,11 @@ export class AuthService {
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: { resetCode: `${code}` },
     });
     await this.mailer.sendFromNoreply(
-      email,
+      user.email,
       'Reset Your Password',
       null,
       generateForgetPasswordMail(code, lang),
@@ -324,7 +340,7 @@ export class AuthService {
     }
     if (user.resetCode === code) {
       await this.prisma.user.update({
-        where: { email },
+        where: { id: user.id },
         data: { resetCode: '' },
       });
       return true;
@@ -339,7 +355,7 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: { password: hashedPassword },
     });
     return true;
