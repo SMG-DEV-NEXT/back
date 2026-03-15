@@ -57,16 +57,16 @@ export class AuthService {
     token: string,
   ): Promise<User> {
     await this.recaptchaService.validate(token);
-    const trimmedEmail = email.trim();
+    const normalizedEmail = this.normalizeEmail(email);
     const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await this.findUserByEmail(trimmedEmail);
+    const existingUser = await this.findUserByEmail(normalizedEmail);
     if (existingUser) {
       throw new BadRequestException('email_already_exists');
     }
     const user = await this.prisma.user.create({
       data: {
         name,
-        email: trimmedEmail,
+        email: normalizedEmail,
         password: hashedPassword,
         role: "user",
         raiting: '0',

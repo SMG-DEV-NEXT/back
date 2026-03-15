@@ -21,7 +21,7 @@ export class CheatService {
   constructor(
     private prisma: PrismaService,
     private planService: PlanService,
-  ) {}
+  ) { }
 
   // Create a new cheat
   async create(createCheatDto: any) {
@@ -149,18 +149,29 @@ export class CheatService {
       throw new NotFoundException('Cheat not found');
     }
     if (ref) {
-      refUser = await this.prisma.referral.findFirst({
+      const foundRef = await this.prisma.referral.findFirst({
         where: { code: ref },
         select: {
           prcentToPrice: true,
           owner: true,
+          userAccountEmail: true,
         },
       });
-      if (refUser) {
+      if (foundRef) {
+        const isOwnReferral =
+          user &&
+          foundRef.userAccountEmail &&
+          foundRef.userAccountEmail.toLowerCase() === user.email.toLowerCase();
+
+        if (!isOwnReferral) {
+          refUser = {
+            prcentToPrice: foundRef.prcentToPrice,
+            owner: foundRef.owner,
+          };
+        }
+
         await this.prisma.referral.update({
-          where: {
-            code: ref,
-          },
+          where: { code: ref },
           data: {
             viewsCount: {
               increment: 1,
@@ -466,26 +477,26 @@ export class CheatService {
         _comparePrice: comparablePrice,
         plan: cheat.plan
           ? {
-              ...cheat.plan,
-              day: {
-                id: cheat.plan.day?.id,
-                price: cheat.plan.day?.price,
-                prcent: cheat.plan.day?.prcent,
-                keysCount: cheat.plan.day?.keys?.length || 0,
-              },
-              week: {
-                id: cheat.plan.week?.id,
-                price: cheat.plan.week?.price,
-                prcent: cheat.plan.week?.prcent,
-                keysCount: cheat.plan.week?.keys?.length || 0,
-              },
-              month: {
-                id: cheat.plan.month?.id,
-                price: cheat.plan.month?.price,
-                prcent: cheat.plan.month?.prcent,
-                keysCount: cheat.plan.month?.keys?.length || 0,
-              },
-            }
+            ...cheat.plan,
+            day: {
+              id: cheat.plan.day?.id,
+              price: cheat.plan.day?.price,
+              prcent: cheat.plan.day?.prcent,
+              keysCount: cheat.plan.day?.keys?.length || 0,
+            },
+            week: {
+              id: cheat.plan.week?.id,
+              price: cheat.plan.week?.price,
+              prcent: cheat.plan.week?.prcent,
+              keysCount: cheat.plan.week?.keys?.length || 0,
+            },
+            month: {
+              id: cheat.plan.month?.id,
+              price: cheat.plan.month?.price,
+              prcent: cheat.plan.month?.prcent,
+              keysCount: cheat.plan.month?.keys?.length || 0,
+            },
+          }
           : null,
       };
     });

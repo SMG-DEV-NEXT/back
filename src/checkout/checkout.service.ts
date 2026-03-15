@@ -164,18 +164,29 @@ export class CheckoutService {
 
   async useFromBalance(
     userId: string,
-    transactionPrice: number,
-    payload: Record<string, any> = {},
+    transactionPriceRub: number,
+    options: {
+      isUsd?: boolean;
+      usdRate?: number;
+      payload?: Record<string, any>;
+    } = {},
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const balanceBefore = (user as any).balance || 0;
-    const balanceDiscount = Math.min(balanceBefore, transactionPrice);
-    const finalPrice = Math.max(transactionPrice - balanceDiscount, 0);
-    const balanceAfter = Math.max(balanceBefore - balanceDiscount, 0);
+    const payload = options.payload || {};
+    const isUsd = !!options.isUsd;
+    const usdRate = Number(options.usdRate) > 0 ? Number(options.usdRate) : 1;
 
-    if (balanceDiscount > 0) {
+    const balanceBefore = (user as any).balance || 0;
+    const balanceDiscountRub = Math.min(balanceBefore, transactionPriceRub);
+    const finalPriceRub = Math.max(transactionPriceRub - balanceDiscountRub, 0);
+    const finalPrice = isUsd
+      ? Number((finalPriceRub / usdRate).toFixed(2))
+      : finalPriceRub;
+    const balanceAfter = Math.max(balanceBefore - balanceDiscountRub, 0);
+
+    if (balanceDiscountRub > 0) {
       await this.prisma.user.update({
         where: { id: userId },
         data: { balance: balanceAfter } as any,
@@ -185,10 +196,12 @@ export class CheckoutService {
 
     return {
       finalPrice,
-      balanceDiscount,
+      balanceDiscount: balanceDiscountRub,
+      balanceDiscountRub,
+      finalPriceRub,
       balanceBefore,
       balanceAfter,
-      isUsedBalance: balanceDiscount > 0,
+      isUsedBalance: balanceDiscountRub > 0,
     };
   }
 
@@ -248,26 +261,31 @@ export class CheckoutService {
       if (cheat.plan[data.type].prcent > 0) {
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
       }
+      const totalPriceRub = Math.round(price * data.count);
       const baseFinalPrice =
         data.currency === 'USD'
-          ? Math.round(price * data.count) / data.usd
-          : Math.round(price * data.count); // рубли * кол-во
+          ? Number((totalPriceRub / data.usd).toFixed(2))
+          : totalPriceRub; // рубли * кол-во
 
       let finalPrice = baseFinalPrice;
       let balanceDiscount = 0;
       let isUsedBalance = false;
 
       if (data.isUsedBalance && user?.id) {
-        const balanceUsage = await this.useFromBalance(user.id, baseFinalPrice, {
-          source: 'checkout',
-          email: data.email,
-          itemId: data.itemId,
-          type: data.type,
-          count: data.count,
-          currency: data.currency,
-          ip,
-          authUserId: authUser?.id || null,
-          clientInfo,
+        const balanceUsage = await this.useFromBalance(user.id, totalPriceRub, {
+          isUsd: data.locale === 'en',
+          usdRate: data.usd,
+          payload: {
+            source: 'checkout',
+            email: data.email,
+            itemId: data.itemId,
+            type: data.type,
+            count: data.count,
+            currency: data.currency,
+            ip,
+            authUserId: authUser?.id || null,
+            clientInfo,
+          },
         });
         finalPrice = balanceUsage.finalPrice;
         balanceDiscount = balanceUsage.balanceDiscount;
@@ -334,7 +352,10 @@ export class CheckoutService {
           break;
         case 'pally':
           payUrl = await this.createBill({
-            amount: Math.round(price * data.count),
+            amount:
+              data.currency === 'USD'
+                ? Math.round(finalPrice * data.usd)
+                : Math.round(finalPrice),
             orderId,
           });
           break;
@@ -398,8 +419,9 @@ export class CheckoutService {
           },
         });
       }
+      let referral = null;
       if (transaction.referralId) {
-        const referral = await this.prisma.referral.findUnique({
+        referral = await this.prisma.referral.findUnique({
           where: { id: transaction.referralId },
         });
         if (referral) {
@@ -444,58 +466,63 @@ export class CheckoutService {
         },
       });
 
-      if (transaction.referralId) {
-        const referral = await this.prisma.referral.findUnique({
-          where: { id: transaction.referralId },
+      if (referral?.userAccountEmail) {
+        const referralUser = await this.prisma.user.findFirst({
+          where: {
+            email: {
+              equals: referral.userAccountEmail,
+              mode: 'insensitive',
+            },
+          },
         });
-        if (referral?.userAccountEmail) {
-          const referralUser = await this.prisma.user.findFirst({
-            where: { email: referral.userAccountEmail },
-          });
 
-          if (referralUser && referralUser.id !== transaction.userId) {
-            const referralBonusPercent = Number(
-              (referral as any)?.prcentToBalance || 0,
+        if (referralUser && referralUser.id !== transaction.userId) {
+          const referralBonusPercent = Number(
+            (referral as any)?.prcentToBalance || 0,
+          );
+          if (referralBonusPercent > 0) {
+            const checkoutedPriceRub = Number(
+              Math.max(
+                Number((transaction as any).realPrice || 0) -
+                Number((transaction as any).balanceDiscount || 0),
+                0,
+              ).toFixed(2),
             );
-            if (referralBonusPercent > 0) {
-              const referralBonus = Number(
-                (
-                  ((transaction.checkoutedPrice || 0) * referralBonusPercent) /
-                  100
-                ).toFixed(2),
-              );
+            const referralBonus = Number(
+              ((checkoutedPriceRub * referralBonusPercent) / 100).toFixed(2),
+            );
 
-              if (referralBonus > 0) {
-                const balanceBefore = (referralUser as any).balance || 0;
-                const balanceAfter = balanceBefore + referralBonus;
+            if (referralBonus > 0) {
+              const balanceBefore = (referralUser as any).balance || 0;
+              const balanceAfter = balanceBefore + referralBonus;
 
-                await this.prisma.user.update({
-                  where: { id: referralUser.id },
-                  data: {
-                    balance: balanceAfter,
-                  } as any,
-                });
+              await this.prisma.user.update({
+                where: { id: referralUser.id },
+                data: {
+                  balance: balanceAfter,
+                } as any,
+              });
 
-                await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
-                  action: 'REFERRAL_BONUS_CALLBACK',
-                  balanceBefore,
-                  balanceAfter,
-                  bonusPercent: referralBonusPercent,
-                  bonusAmount: referralBonus,
-                  referralId: referral.id,
-                  referralCode: referral.code,
-                  referralOwner: referral.owner,
-                  referralUserEmail: referral.userAccountEmail,
-                  buyerEmail: transaction.email,
-                  buyerUserId: transaction.userId || null,
-                  transactionId: transaction.id,
-                  orderId: transaction.orderId,
-                  checkoutedPrice: transaction.checkoutedPrice,
-                  currency: transaction.currency,
-                  callbackPayload: data,
-                  createdAt: new Date().toISOString(),
-                });
-              }
+              await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
+                action: 'REFERRAL_BONUS_CALLBACK',
+                balanceBefore,
+                balanceAfter,
+                bonusPercent: referralBonusPercent,
+                bonusAmount: referralBonus,
+                bonusBaseRub: checkoutedPriceRub,
+                referralId: referral.id,
+                referralCode: referral.code,
+                referralOwner: referral.owner,
+                referralUserEmail: referral.userAccountEmail,
+                buyerEmail: transaction.email,
+                buyerUserId: transaction.userId || null,
+                transactionId: transaction.id,
+                orderId: transaction.orderId,
+                checkoutedPrice: transaction.checkoutedPrice,
+                currency: transaction.currency,
+                callbackPayload: data,
+                createdAt: new Date().toISOString(),
+              });
             }
           }
         }
