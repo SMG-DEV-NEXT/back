@@ -332,12 +332,11 @@ export class CheckoutService {
       }
 
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      if (process.env.FRONT_URL === 'http://localhost:3000') {
+      if (process.env.FRONT_URL === 'http://localhost:3000' || process.env.FRONT_URL === 'https://dev.smgcheats.com') {
         await this.handleCallback({
           MERCHANT_ORDER_ID: orderId,
         });
-        const payUrl = `http://localhost:3000?MERCHANT_ORDER_ID=${orderId}`;
-        return payUrl;
+        return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
       }
       let payUrl = '';
       switch (data.methodPay) {
