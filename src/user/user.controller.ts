@@ -14,11 +14,21 @@ import { Role } from 'constants/roles';
 import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { UserService } from './user.service';
-import { UpdateUserBalanceDto, UpdateUserDto } from './dto';
+import { AddRewardDto, UpdateUserBalanceDto, UpdateUserDto } from './dto';
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) { }
+
+  private getRequestLang(req: any): 'ru' | 'en' {
+    const referer = (req.headers?.referer || '').toString().toLowerCase();
+    if (referer.includes('/ru')) return 'ru';
+
+    const acceptLanguage = (req.headers?.['accept-language'] || '')
+      .toString()
+      .toLowerCase();
+    return acceptLanguage.includes('ru') ? 'ru' : 'en';
+  }
 
   private getClientInfo(req: any) {
     const forwardedFor = req.headers['x-forwarded-for']?.toString();
@@ -86,4 +96,46 @@ export class UserController {
       req?.user,
     );
   }
+
+
+  @Get('reward/my')
+  @UseGuards(AuthGuard('jwt'))
+  getMyRewards(@Req() req: any) {
+    return this.userService.getUserRewards(req.user.id);
+  }
+
+  @Get('reward/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  getUserRewards(@Param('id') id: string) {
+    return this.userService.getUserRewards(id);
+  }
+
+
+
+  @Post('reward/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  addReward(
+    @Param('id') id: string,
+    @Body() data: AddRewardDto,
+  ) {
+    return this.userService.addReward(id, data?.information || {}, !!data?.visited);
+  }
+
+  @Post('reward/visit/:rewardId')
+  @UseGuards(AuthGuard('jwt'))
+  visitReward(
+    @Param('rewardId') rewardId: string,
+    @Body() body: { lang?: string },
+    @Req() req: any,
+  ) {
+    const bodyLang = (body?.lang || '').toString().toLowerCase();
+    const lang: 'ru' | 'en' = bodyLang === 'ru' || bodyLang === 'en'
+      ? (bodyLang as 'ru' | 'en')
+      : this.getRequestLang(req);
+    return this.userService.visitReward(req.user.id, rewardId, lang);
+  }
+
+
 }

@@ -30,3 +30,12 @@ export class UpdateUserBalanceDto {
   @IsNumber()
   balance: number;
 }
+
+export class AddRewardDto {
+  @IsOptional()
+  @IsBoolean()
+  visited?: boolean;
+
+  @IsOptional()
+  information?: Record<string, any>;
+}

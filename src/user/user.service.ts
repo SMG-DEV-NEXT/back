@@ -2,10 +2,60 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateUserDto } from './dto';
 import * as bcrypt from 'bcryptjs';
+import { MailService } from 'src/mail/mail.service';
+import { generateRewardVisitedMail } from 'src/mail/generator';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailer: MailService,
+  ) { }
+
+  private async getActiveReward(userId?: string) {
+    if (!userId) return null;
+
+    return (this.prisma as any).reward.findFirst({
+      where: {
+        userId,
+        visited: false,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  private async getLoyaltyTiers() {
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'loyalty_tiers' },
+    });
+
+    const tiers = (setting?.settings as any)?.tiers;
+    if (!Array.isArray(tiers)) return [];
+
+    return [...tiers]
+      .map((tier) => ({
+        minSpent: Number(tier?.minSpent || 0),
+        percent: Number(tier?.percent || 0),
+      }))
+      .filter((tier) => tier.minSpent >= 0 && tier.percent > 0)
+      .sort((a, b) => a.minSpent - b.minSpent);
+  }
+
+  private resolveUserLoyaltyTier(
+    totalSpent: number,
+    tiers: Array<{ minSpent: number; percent: number }>,
+  ) {
+    const matchedTier = [...tiers]
+      .sort((a, b) => b.minSpent - a.minSpent)
+      .find((tier) => totalSpent >= tier.minSpent);
+
+    return {
+      loyaltyPercent: matchedTier?.percent || 0,
+      loyaltyMinSpent: matchedTier?.minSpent || 0,
+    };
+  }
 
   private async createBalanceHistory(
     userId: string,
@@ -30,6 +80,8 @@ export class UserService {
     page: number;
     limit: number;
   }) {
+    const loyaltyTiers = await this.getLoyaltyTiers();
+
     const where: any = search
       ? {
         OR: [
@@ -55,11 +107,41 @@ export class UserService {
         where,
       }),
     ]);
-    return { data, total: Math.ceil(total / limit), page, limit };
+
+    const mappedData = await Promise.all(data.map(async (user) => {
+      const totalSpent = Number((user as any).totalSpent || 0);
+      const { loyaltyPercent, loyaltyMinSpent } = this.resolveUserLoyaltyTier(
+        totalSpent,
+        loyaltyTiers,
+      );
+      const [activeReward, rewards] = await Promise.all([
+        this.getActiveReward(user.id),
+        (this.prisma as any).reward.findMany({
+          where: { userId: user.id },
+          select: { id: true, visited: true },
+        }),
+      ]);
+
+      const rewardsCount = rewards.length;
+      const visitedRewardsCount = rewards.filter((reward: any) => reward.visited).length;
+
+      return {
+        ...user,
+        transactionCount: user.transactions.length,
+        loyaltyPercent,
+        loyaltyMinSpent,
+        activeReward,
+        activePoint: activeReward,
+        rewardsCount,
+        visitedRewardsCount,
+      };
+    }));
+
+    return { data: mappedData, total: Math.ceil(total / limit), page, limit };
   }
 
-  getUserProfile(id: string) {
-    return this.prisma.user.findUnique({
+  async getUserProfile(id: string) {
+    const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
         balanceHistory: {
@@ -74,6 +156,22 @@ export class UserService {
         },
       },
     });
+
+    if (!user) return user;
+
+    const [activeReward, rewards] = await Promise.all([
+      this.getActiveReward(id),
+      (this.prisma as any).reward.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return {
+      ...user,
+      rewards,
+      activeReward,
+      activePoint: activeReward,
+    };
   }
 
   async updateUserProfile(
@@ -134,7 +232,12 @@ export class UserService {
       });
     }
 
-    return updatedUser;
+    const activeReward = await this.getActiveReward(id);
+    return {
+      ...updatedUser,
+      activeReward,
+      activePoint: activeReward,
+    };
   }
 
   async updateUserBalance(
@@ -173,6 +276,95 @@ export class UserService {
       createdAt: new Date().toISOString(),
     });
 
-    return updatedUser;
+    const activeReward = await this.getActiveReward(userId);
+    return {
+      ...updatedUser,
+      activeReward,
+      activePoint: activeReward,
+    };
+  }
+
+  async addReward(
+    userId: string,
+    information: Record<string, any> = {},
+    visited = false,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const reward = await (this.prisma as any).reward.create({
+      data: {
+        userId,
+        visited,
+        information,
+      },
+    });
+
+    const activeReward = await this.getActiveReward(userId);
+
+    return {
+      reward,
+      activeReward,
+      activePoint: activeReward,
+    };
+  }
+
+  async getUserRewards(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const [rewards, activeReward] = await Promise.all([
+      (this.prisma as any).reward.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.getActiveReward(userId),
+    ]);
+
+    return {
+      rewards,
+      activeReward,
+      activePoint: activeReward,
+    };
+  }
+
+  async visitReward(userId: string, rewardId: string, lang: 'ru' | 'en' = 'en') {
+    const reward = await (this.prisma as any).reward.findFirst({
+      where: {
+        id: rewardId,
+        userId,
+      },
+    });
+
+    if (!reward) throw new NotFoundException('Reward not found');
+
+    const updatedReward = await (this.prisma as any).reward.update({
+      where: { id: rewardId },
+      data: { visited: true },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+
+    if (user?.email) {
+      const info = (updatedReward as any)?.information || {};
+
+      await this.mailer.sendFromNoreply(
+        user.email,
+        lang === 'ru' ? 'Награда открыта' : 'Reward opened',
+        null,
+        generateRewardVisitedMail(info?.name || '', info?.code || '', lang),
+      );
+    }
+
+    const activeReward = await this.getActiveReward(userId);
+
+    return {
+      reward: updatedReward,
+      activeReward,
+      activePoint: activeReward,
+    };
   }
 }

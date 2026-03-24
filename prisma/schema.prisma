@@ -25,7 +25,19 @@ model User {
   transactions Transaction[]
   role               String @default("user")
   balance            Float @default(0)
+  totalSpent         Float @default(0)
   balanceHistory     BalanceHistory[]
+  rewards            Reward[]
+}
+
+model Reward {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  visited     Boolean  @default(false)
+  information Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Token {
@@ -238,6 +250,7 @@ model Transaction {
   jsonPayload   Json?
   balanceDiscount Float @default(0)
   isUsedBalance   Boolean @default(false)
+  loyaltyDiscount Float @default(0)
 }
 
 model FaqBlock {

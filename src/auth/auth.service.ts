@@ -33,6 +33,51 @@ export class AuthService {
     return email.trim().toLowerCase();
   }
 
+  private async getLoyaltyTiers() {
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'loyalty_tiers' },
+    });
+
+    const tiers = (setting?.settings as any)?.tiers;
+    if (!Array.isArray(tiers)) return [];
+
+    return [...tiers]
+      .map((tier) => ({
+        minSpent: Number(tier?.minSpent || 0),
+        percent: Number(tier?.percent || 0),
+      }))
+      .filter((tier) => tier.minSpent >= 0 && tier.percent > 0)
+      .sort((a, b) => b.minSpent - a.minSpent);
+  }
+
+  private async attachLoyaltyData<T extends Record<string, any>>(user: T): Promise<T> {
+    if (!user) return user;
+
+    const loyaltyTiers = await this.getLoyaltyTiers();
+    const totalSpent = Number(user?.totalSpent || 0);
+    const matchedTier = loyaltyTiers.find((tier) => totalSpent >= tier.minSpent);
+    const activeReward = user?.id
+      ? await (this.prisma as any).reward.findFirst({
+        where: {
+          userId: user.id,
+          visited: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+      : null;
+
+    return {
+      ...user,
+      totalSpent,
+      loyaltyPercent: matchedTier?.percent || 0,
+      loyaltyMinSpent: matchedTier?.minSpent || 0,
+      activeReward,
+      activePoint: activeReward,
+    };
+  }
+
   private async findUserByEmail<T = User>(
     email: string,
     options: any = {},
@@ -55,7 +100,7 @@ export class AuthService {
     password: string,
     lang: string,
     token: string,
-  ): Promise<User> {
+  ): Promise<any> {
     await this.recaptchaService.validate(token);
     const normalizedEmail = this.normalizeEmail(email);
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -92,7 +137,7 @@ export class AuthService {
           `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
         ),
     );
-    return user;
+    return this.attachLoyaltyData(user as any);
   }
 
   async resendEmail(email: string, lang: string): Promise<User> {
@@ -137,10 +182,11 @@ export class AuthService {
       }
     }
     const tokens = this.generateTokens(user.id);
+    const userWithLoyalty = await this.attachLoyaltyData(user as any);
     return {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      user,
+      user: userWithLoyalty,
     };
   }
 
@@ -159,8 +205,9 @@ export class AuthService {
       throw new BadRequestException('email_not_found');
     }
     const { password, ...data } = user;
+    const dataWithLoyalty = await this.attachLoyaltyData(data as any);
     const tokens = this.generateTokens(id);
-    return { data, tokens };
+    return { data: dataWithLoyalty, tokens };
   }
 
   async refreshToken(refreshToken: string): Promise<{ access_token: string }> {
@@ -385,6 +432,10 @@ export class AuthService {
     });
 
     const { password: _, ...data } = update;
-    return data;
+    return this.attachLoyaltyData(data as any);
+  }
+
+  async attachClientUserLoyalty<T extends Record<string, any>>(user: T) {
+    return this.attachLoyaltyData(user);
   }
 }

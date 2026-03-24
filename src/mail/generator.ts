@@ -265,3 +265,60 @@ export const generateForRegistrationEn = (url: string) => {
   </body>
 </html>`;
 };
+
+export const generateRewardVisitedMail = (
+  rewardName: string,
+  rewardCode: string,
+  lang: string = 'en',
+) => {
+  const isRu = lang === 'ru';
+
+  return `
+    <!DOCTYPE html>
+<html lang="${isRu ? 'ru' : 'en'}">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${isRu ? 'Ваша награда открыта' : 'Your reward was opened'}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body style="margin:0; padding:0; background-color:#181A1F; font-family:Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#181A1F; padding:20px 0;">
+      <tr>
+        <td align="center">
+          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background:#1F2127; border-radius:10px; padding:28px;">
+            <tr>
+              <td>
+                <h2 style="margin:0 0 12px 0; color:#E9E3F6; font-size:24px;">
+                  ${isRu ? 'Вы открыли награду 🎁' : 'You opened a reward 🎁'}
+                </h2>
+                <p style="margin:0 0 18px 0; color:#A9A4B9; font-size:15px; line-height:1.5;">
+                  ${isRu
+      ? 'Ниже данные награды, которую вы только что просмотрели.'
+      : 'Here are the details of the reward you have just viewed.'}
+                </p>
+
+                <table width="100%" cellpadding="10" cellspacing="0" style="background:#181A1F; border:1px solid #3B3E45; border-radius:8px; margin-bottom:12px;">
+                  <tr>
+                    <td style="color:#8B6DCA; font-weight:bold; width:140px;">${isRu ? 'Награда' : 'Reward'}:</td>
+                    <td style="color:#E9E3F6;">${rewardName || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td style="color:#8B6DCA; font-weight:bold;">${isRu ? 'Код' : 'Code'}:</td>
+                    <td style="color:#E9E3F6; font-weight:bold; letter-spacing:0.5px;">${rewardCode || '-'}</td>
+                  </tr>
+                </table>
+
+                <p style="margin:0; color:#A9A4B9; font-size:13px; line-height:1.5;">
+                  ${isRu
+      ? 'Если это были не вы, пожалуйста свяжитесь с поддержкой.'
+      : 'If this action was not performed by you, please contact support.'}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+};

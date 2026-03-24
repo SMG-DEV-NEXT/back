@@ -205,6 +205,28 @@ export class CheckoutService {
     };
   }
 
+  private async getLoyaltyDiscount(userId: string): Promise<number> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return 0;
+
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'loyalty_tiers' },
+    });
+    if (!setting) return 0;
+
+    const { tiers } = setting.settings as any;
+    if (!Array.isArray(tiers) || tiers.length === 0) return 0;
+
+    const totalSpent = (user as any).totalSpent || 0;
+
+    // find the highest tier the user qualifies for
+    const tier = [...tiers]
+      .sort((a, b) => b.minSpent - a.minSpent)
+      .find((t) => totalSpent >= t.minSpent);
+
+    return tier?.percent || 0;
+  }
+
 
   async initiatePayment(
     data: CheckoutDto,
@@ -250,9 +272,29 @@ export class CheckoutService {
           price -= (initialPrice / 100) * refOwner.prcentToPrice;
         }
       }
-      if (promoCode && promoCode.count < promoCode.maxActivate) {
-        price -= (initialPrice / 100) * promoCode.percent;
+      // Loyalty discount — based on user's total spend history
+      let loyaltyPercent = 0;
+      if (user?.id) {
+        loyaltyPercent = await this.getLoyaltyDiscount(user.id);
       }
+
+      // Promo OR loyalty — whichever is higher wins; they cannot stack
+      const promoIsValid = !!(promoCode && promoCode.count < promoCode.maxActivate);
+      const promoPercent = promoIsValid ? promoCode.percent : 0;
+
+      let activePromoCode: typeof promoCode | null = null;
+      let activeLoyaltyPercent = 0;
+
+      if (promoPercent >= loyaltyPercent && promoPercent > 0) {
+        // Promo code wins
+        activePromoCode = promoCode;
+        price -= (initialPrice / 100) * promoPercent;
+      } else if (loyaltyPercent > promoPercent && loyaltyPercent > 0) {
+        // Loyalty discount wins
+        activeLoyaltyPercent = loyaltyPercent;
+        price -= (initialPrice / 100) * loyaltyPercent;
+      }
+
       if (isReseller && user && isReseller.email === user.email) {
         price -= (initialPrice / 100) * isReseller.prcent;
       } else {
@@ -310,7 +352,8 @@ export class CheckoutService {
               ? (cheat.plan[data.type].price * data.count) / data.usd
               : cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
-          promoCode: promoCode?.code,
+          promoCode: activePromoCode?.code,
+          loyaltyDiscount: activeLoyaltyPercent,
           count: data.count,
           ip,
           // @ts-ignore
@@ -464,6 +507,18 @@ export class CheckoutService {
           jsonPayload: JSON.stringify(data)
         },
       });
+
+      // Update user's cumulative spend for loyalty tier tracking
+      if (transaction.userId) {
+        await (this.prisma.user as any).update({
+          where: { id: transaction.userId },
+          data: {
+            totalSpent: {
+              increment: (transaction as any).realPrice || 0,
+            },
+          },
+        });
+      }
 
       if (referral?.userAccountEmail) {
         const referralUser = await this.prisma.user.findFirst({
