@@ -67,10 +67,10 @@ export class AuthService {
       null,
       lang === 'ru'
         ? generateForRegistrationRu(
-          `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
+          `${process.env.FRONT_URL}/ru/?token=${authToken.token}`,
         )
         : generateForRegistrationEn(
-          `${process.env.FRONT_URL}/${lang}/?token=${authToken.token}`,
+          `${process.env.FRONT_URL}?token=${authToken.token}`,
         ),
     );
     return user;
