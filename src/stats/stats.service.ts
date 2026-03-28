@@ -9,7 +9,7 @@ import {
 
 @Injectable()
 export class StatsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // 1. Get all games with count of stats
   async getAllGamesWithStatsCount() {
@@ -151,6 +151,13 @@ export class StatsService {
         ...data,
         catalog: { connect: { id: catalogId } },
       },
+    });
+  }
+
+  // 6. Delete a stat
+  async deleteStat(statId: string) {
+    return this.prisma.stats.delete({
+      where: { id: statId },
     });
   }
 
