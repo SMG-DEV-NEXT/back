@@ -47,13 +47,28 @@ export class UserService {
     totalSpent: number,
     tiers: Array<{ minSpent: number; percent: number }>,
   ) {
-    const matchedTier = [...tiers]
-      .sort((a, b) => b.minSpent - a.minSpent)
-      .find((tier) => totalSpent >= tier.minSpent);
+    const normalizedTotalSpent = Number(totalSpent || 0);
+    const sortedAsc = [...tiers].sort((a, b) => a.minSpent - b.minSpent);
+    const matchedTier = [...sortedAsc]
+      .reverse()
+      .find((tier) => normalizedTotalSpent >= tier.minSpent);
+    const nextTierIndex = sortedAsc.findIndex(
+      (tier) => normalizedTotalSpent < tier.minSpent,
+    );
+    const nextTier = nextTierIndex >= 0 ? sortedAsc[nextTierIndex] : null;
 
     return {
+      totalSpent: normalizedTotalSpent,
       loyaltyPercent: matchedTier?.percent || 0,
       loyaltyMinSpent: matchedTier?.minSpent || 0,
+      nextLoyaltyPosition: nextTierIndex >= 0 ? nextTierIndex + 1 : null,
+      nextLoyaltyTier: nextTier,
+      nextLoyaltyMinSpent: nextTier?.minSpent ?? null,
+      nextLoyaltyPercent: nextTier?.percent ?? null,
+      nextLoyaltyAmountLeft: nextTier
+        ? Math.max(nextTier.minSpent - normalizedTotalSpent, 0)
+        : 0,
+      isMaxLoyaltyTier: !!sortedAsc.length && !nextTier,
     };
   }
 
@@ -109,9 +124,8 @@ export class UserService {
     ]);
 
     const mappedData = await Promise.all(data.map(async (user) => {
-      const totalSpent = Number((user as any).totalSpent || 0);
-      const { loyaltyPercent, loyaltyMinSpent } = this.resolveUserLoyaltyTier(
-        totalSpent,
+      const loyaltyData = this.resolveUserLoyaltyTier(
+        (user as any).totalSpent || 0,
         loyaltyTiers,
       );
       const [activeReward, rewards] = await Promise.all([
@@ -128,8 +142,7 @@ export class UserService {
       return {
         ...user,
         transactionCount: user.transactions.length,
-        loyaltyPercent,
-        loyaltyMinSpent,
+        ...loyaltyData,
         activeReward,
         activePoint: activeReward,
         rewardsCount,
@@ -141,23 +154,31 @@ export class UserService {
   }
 
   async getUserProfile(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      include: {
-        balanceHistory: {
-          orderBy: { createdAt: 'desc' },
+    const [user, loyaltyTiers] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id },
+        include: {
+          balanceHistory: {
+            orderBy: { createdAt: 'desc' },
+          },
+          transactions: {
+            where: { status: 'success' },
+            include: { cheat: true },
+          },
+          comments: {
+            include: { cheat: true },
+          },
         },
-        transactions: {
-          where: { status: 'success' },
-          include: { cheat: true },
-        },
-        comments: {
-          include: { cheat: true },
-        },
-      },
-    });
+      }),
+      this.getLoyaltyTiers(),
+    ]);
 
     if (!user) return user;
+
+    const loyaltyData = this.resolveUserLoyaltyTier(
+      (user as any).totalSpent || 0,
+      loyaltyTiers,
+    );
 
     const [activeReward, rewards] = await Promise.all([
       this.getActiveReward(id),
@@ -168,6 +189,7 @@ export class UserService {
     ]);
     return {
       ...user,
+      ...loyaltyData,
       rewards,
       activeReward,
       activePoint: activeReward,
@@ -232,9 +254,17 @@ export class UserService {
       });
     }
 
-    const activeReward = await this.getActiveReward(id);
+    const [activeReward, loyaltyTiers] = await Promise.all([
+      this.getActiveReward(id),
+      this.getLoyaltyTiers(),
+    ]);
+    const loyaltyData = this.resolveUserLoyaltyTier(
+      (updatedUser as any).totalSpent || 0,
+      loyaltyTiers,
+    );
     return {
       ...updatedUser,
+      ...loyaltyData,
       activeReward,
       activePoint: activeReward,
     };
@@ -276,9 +306,17 @@ export class UserService {
       createdAt: new Date().toISOString(),
     });
 
-    const activeReward = await this.getActiveReward(userId);
+    const [activeReward, loyaltyTiers] = await Promise.all([
+      this.getActiveReward(userId),
+      this.getLoyaltyTiers(),
+    ]);
+    const loyaltyData = this.resolveUserLoyaltyTier(
+      (updatedUser as any).totalSpent || 0,
+      loyaltyTiers,
+    );
     return {
       ...updatedUser,
+      ...loyaltyData,
       activeReward,
       activePoint: activeReward,
     };

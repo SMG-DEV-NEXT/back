@@ -50,12 +50,40 @@ export class AuthService {
       .sort((a, b) => b.minSpent - a.minSpent);
   }
 
+  private resolveLoyaltyStatus(
+    totalSpent: number,
+    tiers: Array<{ minSpent: number; percent: number }>,
+  ) {
+    const normalizedTotalSpent = Number(totalSpent || 0);
+    const sortedAsc = [...tiers].sort((a, b) => a.minSpent - b.minSpent);
+    const matchedTier = [...sortedAsc]
+      .reverse()
+      .find((tier) => normalizedTotalSpent >= tier.minSpent);
+    const nextTierIndex = sortedAsc.findIndex(
+      (tier) => normalizedTotalSpent < tier.minSpent,
+    );
+    const nextTier = nextTierIndex >= 0 ? sortedAsc[nextTierIndex] : null;
+
+    return {
+      totalSpent: normalizedTotalSpent,
+      loyaltyPercent: matchedTier?.percent || 0,
+      loyaltyMinSpent: matchedTier?.minSpent || 0,
+      nextLoyaltyPosition: nextTierIndex >= 0 ? nextTierIndex + 1 : null,
+      nextLoyaltyTier: nextTier,
+      nextLoyaltyMinSpent: nextTier?.minSpent ?? null,
+      nextLoyaltyPercent: nextTier?.percent ?? null,
+      nextLoyaltyAmountLeft: nextTier
+        ? Math.max(nextTier.minSpent - normalizedTotalSpent, 0)
+        : 0,
+      isMaxLoyaltyTier: !!sortedAsc.length && !nextTier,
+    };
+  }
+
   private async attachLoyaltyData<T extends Record<string, any>>(user: T): Promise<T> {
     if (!user) return user;
 
     const loyaltyTiers = await this.getLoyaltyTiers();
-    const totalSpent = Number(user?.totalSpent || 0);
-    const matchedTier = loyaltyTiers.find((tier) => totalSpent >= tier.minSpent);
+    const loyaltyData = this.resolveLoyaltyStatus(user?.totalSpent || 0, loyaltyTiers);
     const activeReward = user?.id
       ? await (this.prisma as any).reward.findFirst({
         where: {
@@ -70,9 +98,7 @@ export class AuthService {
 
     return {
       ...user,
-      totalSpent,
-      loyaltyPercent: matchedTier?.percent || 0,
-      loyaltyMinSpent: matchedTier?.minSpent || 0,
+      ...loyaltyData,
       activeReward,
       activePoint: activeReward,
     };
