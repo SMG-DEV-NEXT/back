@@ -56,8 +56,11 @@ model Catalog {
 model Stats {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   createdAt    DateTime @default(now())
+  slug         String?
   titleru      String
   titleen      String
+  h1ru         String?  @default("")
+  h1en         String?  @default("")
   metaru       String
   metaen       String
   aboutru      String?

@@ -52,20 +52,24 @@ function randomText(length = 10): string {
 }
 
 async function main() {
-  const allPlans = await prisma.plan.findMany();
-  allPlans.forEach(async (plan) => {
-    await prisma.period.update({
-      where: { id: plan.dayId },
-      data: { titleRu: "1 дней", titleEn: "1 days" }
-    })
-    await prisma.period.update({
-      where: { id: plan.weekId },
-      data: { titleRu: "7 дней", titleEn: "7 days" }
-    })
-    await prisma.period.update({
-      where: { id: plan.monthId },
-      data: { titleRu: "30 дней", titleEn: "30 days" }
-    })
+  // const allPlans = await prisma.plan.findMany();
+  // allPlans.forEach(async (plan) => {
+  //   await prisma.period.update({
+  //     where: { id: plan.dayId },
+  //     data: { titleRu: "1 дней", titleEn: "1 days" }
+  //   })
+  //   await prisma.period.update({
+  //     where: { id: plan.weekId },
+  //     data: { titleRu: "7 дней", titleEn: "7 days" }
+  //   })
+  //   await prisma.period.update({
+  //     where: { id: plan.monthId },
+  //     data: { titleRu: "30 дней", titleEn: "30 days" }
+  //   })
+  // })
+  await prisma.stats.updateMany({
+    where: {},
+    data: { slug: "test-slug", h1en: "", h1ru: "" }
   })
   console.log("Periods updated")
 }

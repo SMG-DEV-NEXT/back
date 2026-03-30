@@ -12,10 +12,22 @@ import {
 } from 'class-validator';
 export class CreateStatDto {
   @IsString()
+  @IsNotEmpty()
+  slug: string;
+
+  @IsString()
   titleru: string;
 
   @IsString()
   titleen: string;
+
+  @IsOptional()
+  @IsString()
+  h1ru?: string;
+
+  @IsOptional()
+  @IsString()
+  h1en?: string;
 
   @IsString()
   metaru: string;
@@ -57,10 +69,22 @@ export class CreateStatDto {
 
 export class UpdateStatsDto {
   @IsString()
+  @IsNotEmpty()
+  slug: string;
+
+  @IsString()
   titleru: string;
 
   @IsString()
   titleen: string;
+
+  @IsOptional()
+  @IsString()
+  h1ru?: string;
+
+  @IsOptional()
+  @IsString()
+  h1en?: string;
 
   @IsString()
   metaru: string;
