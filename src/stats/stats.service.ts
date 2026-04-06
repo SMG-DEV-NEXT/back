@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateStatDto,
@@ -9,7 +9,22 @@ import {
 
 @Injectable()
 export class StatsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
+
+
+  private async resolveStatWhereBySlugOrId(slugOrId: string) {
+    const slugFilter: any = { slug: slugOrId };
+    const bySlug = await this.prisma.stats.findFirst({
+      where: slugFilter,
+      select: { id: true },
+    });
+
+    if (bySlug) {
+      return { id: bySlug.id };
+    }
+
+    return { id: slugOrId };
+  }
 
   // 1. Get all games with count of stats
   async getAllGamesWithStatsCount() {
@@ -92,30 +107,33 @@ export class StatsService {
   }
   // 4. Create a stat for a game
   async createStatForGame(catalogId: string, statsData: CreateStatDto) {
+
     return this.prisma.stats.create({
       data: {
         ...statsData,
         catalogId: catalogId,
         // game: { connect: { id: gameId } },
-      },
+      } as any,
     });
   }
 
-  async getStatWithCatalog(id: string, isUser: boolean) {
+  async getStatWithCatalog(slugOrId: string, isUser: boolean) {
+    const where = await this.resolveStatWhereBySlugOrId(slugOrId);
+
     const stats = await this.prisma.stats.findMany({
       orderBy: {
         view: 'desc', // Sort by views in descending order
       },
       where: {
         id: {
-          not: id,
+          not: where.id,
         },
       },
       take: 4,
     });
     if (isUser) {
       const stat = await this.prisma.stats.update({
-        where: { id },
+        where,
         include: {
           catalog: true,
         },
@@ -131,7 +149,7 @@ export class StatsService {
       };
     }
     const stat = await this.prisma.stats.findFirst({
-      where: { id },
+      where,
       include: {
         catalog: true,
       },
@@ -144,13 +162,24 @@ export class StatsService {
 
   // 5. Update a stat for a game
   async updateStat(statId: string, updateData: UpdateStatsDto) {
-    const { catalogId, ...data } = updateData;
+    const { catalogId, slug, titleen, titleru, ...data } = updateData;
+
     return this.prisma.stats.update({
       where: { id: statId },
       data: {
         ...data,
+        titleen,
+        titleru,
+        slug,
         catalog: { connect: { id: catalogId } },
-      },
+      } as any,
+    });
+  }
+
+  // 6. Delete a stat
+  async deleteStat(statId: string) {
+    return this.prisma.stats.delete({
+      where: { id: statId },
     });
   }
 

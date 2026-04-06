@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -112,6 +113,17 @@ export class StatsController {
   ) {
     try {
       return this.statsService.updateStat(statId, updateStatsDto);
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  // 6. Delete a stat (Only Admin)
+  @UseGuards(RolesGuard)
+  @Delete('/:statId')
+  async deleteStat(@Param('statId') statId: string) {
+    try {
+      return this.statsService.deleteStat(statId);
     } catch (error) {
       await sendErrorNotification(error);
     }
