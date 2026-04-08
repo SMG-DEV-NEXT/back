@@ -3,46 +3,46 @@ const prisma = new PrismaClient();
 import * as bcrypt from 'bcryptjs';
 import { guaranteSettings } from './guarante';
 
-// async function main() {
-//   const blocks = [
-//     { titleru: 'Приветствие', titleen: 'Greeting', order: 0 },
-//     { titleru: 'Полезная информация', titleen: 'Useful information', order: 1 },
-//     {
-//       titleru: 'Проблемы и решения',
-//       titleen: 'Problems and solutions',
-//       order: 2,
-//     },
-//   ];
+async function main() {
+  const blocks = [
+    { titleru: 'Приветствие', titleen: 'Greeting', order: 0 },
+    { titleru: 'Полезная информация', titleen: 'Useful information', order: 1 },
+    {
+      titleru: 'Проблемы и решения',
+      titleen: 'Problems and solutions',
+      order: 2,
+    },
+  ];
 
-//   for (const block of blocks) {
-//     const exists = await prisma.faqBlock.findFirst({
-//       where: { order: block.order },
-//     });
-//     if (!exists) {
-//       await prisma.faqBlock.create({ data: block });
-//     }
-//   }
-//   const hashedPassword = await bcrypt.hash('office123', 10);
+  for (const block of blocks) {
+    const exists = await prisma.faqBlock.findFirst({
+      where: { order: block.order },
+    });
+    if (!exists) {
+      await prisma.faqBlock.create({ data: block });
+    }
+  }
+  const hashedPassword = await bcrypt.hash('office123', 10);
 
-//   await prisma.user.create({
-//     data: {
-//       name: 'Admin',
-//       email: 'admin@smg.com',
-//       password: hashedPassword,
-//       isAdmin: true,
-//       raiting: '0',
-//       isTwoFactorEnabled: false,
-//       resetCode: '',
-//     },
-//   });
+  await prisma.user.create({
+    data: {
+      name: 'Admin',
+      email: 'admin@smg.com',
+      password: hashedPassword,
+      isAdmin: true,
+      raiting: '0',
+      isTwoFactorEnabled: false,
+      resetCode: '',
+    },
+  });
 
-//   await prisma.setting.create({
-//     data: {
-//       title: 'guarante',
-//       settings: guaranteSettings,
-//     },
-//   });
-// }
+  await prisma.setting.create({
+    data: {
+      title: 'guarante',
+      settings: guaranteSettings,
+    },
+  });
+}
 
 function randomText(length = 10): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -51,28 +51,28 @@ function randomText(length = 10): string {
   ).join('');
 }
 
-async function main() {
-  // const allPlans = await prisma.plan.findMany();
-  // allPlans.forEach(async (plan) => {
-  //   await prisma.period.update({
-  //     where: { id: plan.dayId },
-  //     data: { titleRu: "1 дней", titleEn: "1 days" }
-  //   })
-  //   await prisma.period.update({
-  //     where: { id: plan.weekId },
-  //     data: { titleRu: "7 дней", titleEn: "7 days" }
-  //   })
-  //   await prisma.period.update({
-  //     where: { id: plan.monthId },
-  //     data: { titleRu: "30 дней", titleEn: "30 days" }
-  //   })
-  // })
-  await prisma.stats.updateMany({
-    where: {},
-    data: { slug: "test-slug", h1en: "", h1ru: "" }
-  })
-  console.log("Periods updated")
-}
+// async function main() {
+//   // const allPlans = await prisma.plan.findMany();
+//   // allPlans.forEach(async (plan) => {
+//   //   await prisma.period.update({
+//   //     where: { id: plan.dayId },
+//   //     data: { titleRu: "1 дней", titleEn: "1 days" }
+//   //   })
+//   //   await prisma.period.update({
+//   //     where: { id: plan.weekId },
+//   //     data: { titleRu: "7 дней", titleEn: "7 days" }
+//   //   })
+//   //   await prisma.period.update({
+//   //     where: { id: plan.monthId },
+//   //     data: { titleRu: "30 дней", titleEn: "30 days" }
+//   //   })
+//   // })
+//   await prisma.stats.updateMany({
+//     where: {},
+//     data: { slug: "test-slug", h1en: "", h1ru: "" }
+//   })
+//   console.log("Periods updated")
+// }
 main()
   .catch((e) => {
     console.error(e);
