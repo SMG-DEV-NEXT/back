@@ -16,6 +16,14 @@ export class CreateDto {
   headEn: string;
 
   @IsString()
+  @IsOptional()
+  h1Ru?: string;
+
+  @IsString()
+  @IsOptional()
+  h1En?: string;
+
+  @IsString()
   metaRu: string;
 
   @IsString()
