@@ -15,15 +15,97 @@ import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
-import * as http from 'http';
 
 @Injectable()
 export class CheckoutService {
+  private b2payJwtToken: string | null = null;
+  private b2payJwtExpiresAt = 0;
+  private b2payAuthLockedUntil = 0;
+
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
     private readonly httpService: HttpService,
   ) { }
+
+  private async getB2PayJwtToken(): Promise<string> {
+    const now = Date.now();
+    if (this.b2payJwtToken && now < this.b2payJwtExpiresAt - 60_000) {
+      return this.b2payJwtToken;
+    }
+
+    if (now < this.b2payAuthLockedUntil) {
+      const secondsLeft = Math.ceil((this.b2payAuthLockedUntil - now) / 1000);
+      throw new BadGatewayException(
+        `B2Pay auth is temporarily locked. Retry in ${secondsLeft}s`,
+      );
+    }
+
+    const staticJwtToken = process.env.B2PAY_JWT_TOKEN;
+    if (staticJwtToken) {
+      return staticJwtToken;
+    }
+
+    const tokenUrl = 'https://app.b2pay.online/v1/auth/token/get';
+
+    const tokenExpiryHours = Math.min(
+      Number(process.env.B2PAY_TOKEN_EXPIRY_HOURS || 24),
+      720,
+    );
+
+    const userId = process.env.B2PAY_USER_ID;
+    const email = process.env.B2PAY_EMAIL;
+    const apiKey = process.env.B2PAY_TOKEN;
+
+    if (!userId || !email || !apiKey) {
+      throw new BadGatewayException(
+        'B2Pay credentials are not configured: B2PAY_USER_ID, B2PAY_EMAIL, B2PAY_API_KEY',
+      );
+    }
+
+    let tokenRes;
+    try {
+      tokenRes = await axios.post(
+        tokenUrl,
+        {
+          user_id: userId,
+          email,
+          api_key: apiKey,
+          token_expiry_hours: tokenExpiryHours,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        },
+      );
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        '';
+
+      if (String(message).toLowerCase().includes('temporarily locked')) {
+        this.b2payAuthLockedUntil = now + 15 * 60 * 1000;
+      }
+
+      throw err;
+    }
+
+    const token = tokenRes.data?.token || tokenRes.data?.data?.token;
+    if (!token) {
+      throw new Error(
+        `B2Pay token/get returned empty token: ${JSON.stringify(tokenRes.data)}`,
+      );
+    }
+
+    this.b2payJwtToken = token;
+    this.b2payJwtExpiresAt = now + tokenExpiryHours * 60 * 60 * 1000;
+    return token;
+  }
+
   async sendMail(transaction: Transaction) {
     try {
       const html = generatorAfterCheckoutMail(transaction);
@@ -112,39 +194,58 @@ export class CheckoutService {
     ip: string,
   ) {
     try {
-      const agent = new http.Agent({ family: 4 });
+      const token = await this.getB2PayJwtToken();
+      const apiUrl = process.env.B2PAY_API_URL
       const res = await axios.post(
-        process.env.B2PAY_API_URL, // e.g. https://payment.b2pay.io/api/v1/payment
+        apiUrl,
         {
-          amount: amount.toFixed(2),
+          customer_id: email,
+          amount: Number(amount.toFixed(2)),
           currency,
           description: `Payment for order #${orderId}`,
-          orderNumber: orderId,
-          customerType: 'new',
-          customerIP: ip,
-          customerEmail: email,
-          callbackUrl: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
-          successUrl: `${process.env.FRONT_URL}/preview/${orderId}`,
-          failUrl: `${process.env.FRONT_URL}/fail`,
+          metadata: {
+            tracking_id: orderId,
+            customer_email: email,
+            customer_ip: ip,
+            return_url: `${process.env.FRONT_URL}/preview/${orderId}`,
+            notification_url: `${process.env.BACKEND_URL}/checkout/b2pay/callback`,
+            test_mode: process.env.NODE_ENV !== 'production',
+          },
         },
         {
           headers: {
-            Authorization: `Bearer ${process.env.B2PAY_TOKEN}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          httpAgent: agent,
         },
       );
 
-      if (!res.data?.success || !res.data?.paymentData?.link) {
-        throw new Error('B2Pay invalid response');
+      const redirectUrl =
+        res.data?.metadata?.auth_url ||
+        res.data?.auth_url ||
+        res.data?.payment_url ||
+        res.data?.link;
+
+      if (!redirectUrl) {
+        throw new Error('B2Pay invalid response: redirect url is missing');
       }
 
-      return res.data.paymentData.link; // user will be redirected here
+      return redirectUrl;
     } catch (err) {
-      console.error('B2Pay error:', err?.response?.data || err);
-      throw new BadGatewayException('B2Pay payment failed');
+      const upstreamError = err?.response?.data;
+      const upstreamStatus = err?.response?.status;
+      console.error('B2Pay error:', {
+        status: upstreamStatus,
+        data: upstreamError || err,
+      });
+
+      throw new BadGatewayException(
+        upstreamError?.error ||
+        upstreamError?.message ||
+        upstreamError?.details ||
+        'B2Pay payment failed',
+      );
     }
   }
 

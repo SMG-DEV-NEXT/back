@@ -91,13 +91,21 @@ export class CheckoutController {
 
   @Post('/b2pay/callback')
   async b2payCallback(@Body() body: any) {
-    const { orderNumber, status } = body;
-    if (!orderNumber) return { ok: false };
-    if (status === 'approved') {
+    const status = (body?.status || '').toLowerCase();
+    const orderId =
+      body?.metadata?.tracking_id ||
+      body?.tracking_id ||
+      body?.orderNumber ||
+      body?.order_id;
+
+    if (!orderId) return { ok: false };
+
+    if (['approved', 'success', 'succeeded', 'paid', 'completed'].includes(status)) {
       await this.checkoutService.handleCallback({
-        MERCHANT_ORDER_ID: orderNumber,
+        MERCHANT_ORDER_ID: orderId,
       });
     }
+
     return { ok: true };
   }
 
