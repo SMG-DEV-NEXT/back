@@ -54,6 +54,8 @@ model Catalog {
   title    String
   headRu   String
   headEn   String
+  h1Ru     String? @default("")
+  h1En     String? @default("")
   metaRu   String
   metaEn   String
   link     String?
