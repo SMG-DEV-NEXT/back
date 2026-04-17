@@ -8,13 +8,17 @@ import {
 import { CheckoutDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Transaction, User } from '@prisma/client';
-import { generatorAfterCheckoutMail } from 'src/mail/generator';
+import {
+  generateCheckoutAutoRegisterMail,
+  generatorAfterCheckoutMail,
+} from 'src/mail/generator';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class CheckoutService {
@@ -27,6 +31,49 @@ export class CheckoutService {
     private mail: MailService,
     private readonly httpService: HttpService,
   ) { }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private generateTemporaryPassword(length = 12): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i += 1) {
+      const idx = Math.floor(Math.random() * chars.length);
+      password += chars[idx];
+    }
+    return password;
+  }
+
+  private async autoRegisterCheckoutUser(email: string, locale: string) {
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const normalizedEmail = this.normalizeEmail(email);
+
+    const createdUser = await this.prisma.user.create({
+      data: {
+        name: normalizedEmail.split('@')[0] || 'User',
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: 'user',
+        raiting: '0',
+        isTwoFactorEnabled: false,
+        resetCode: '',
+        accept: true,
+      },
+    });
+
+    const lang = locale === 'en' ? 'en' : 'ru';
+    await this.mail.sendFromNoreply(
+      createdUser.email,
+      lang === 'en' ? 'Your SMG account has been created' : 'Ваш аккаунт SMG создан',
+      null,
+      generateCheckoutAutoRegisterMail(temporaryPassword, lang),
+    );
+
+    return createdUser;
+  }
 
   private async getB2PayJwtToken(): Promise<string> {
     const now = Date.now();
@@ -306,6 +353,20 @@ export class CheckoutService {
     };
   }
 
+  private async getUserSuccessfulSpent(userId: string): Promise<number> {
+    const aggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        status: 'success',
+      },
+      _sum: {
+        realPrice: true,
+      },
+    });
+
+    return Number(aggregate._sum.realPrice || 0);
+  }
+
   private async getLoyaltyDiscount(userId: string): Promise<number> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return 0;
@@ -318,7 +379,7 @@ export class CheckoutService {
     const { tiers } = setting.settings as any;
     if (!Array.isArray(tiers) || tiers.length === 0) return 0;
 
-    const totalSpent = (user as any).totalSpent || 0;
+    const totalSpent = await this.getUserSuccessfulSpent(userId);
 
     // find the highest tier the user qualifies for
     const tier = [...tiers]
@@ -336,13 +397,30 @@ export class CheckoutService {
     clientInfo: Record<string, any> = {},
   ): Promise<any> {
     try {
+      const normalizedEmail = this.normalizeEmail(data.email);
+      data.email = normalizedEmail;
       const ref = data.ref;
       let refOwner = null;
-      const user = await this.prisma.user.findFirst({
-        where: { email: data.email },
+      let user = await this.prisma.user.findFirst({
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
       });
+
+      if (!user) {
+        user = await this.autoRegisterCheckoutUser(normalizedEmail, data.locale);
+      }
+
       let isReseller = await this.prisma.reseller.findFirst({
-        where: { email: data.email },
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
       });
 
       const planType = data.type as 'day' | 'week' | 'month';
@@ -352,7 +430,13 @@ export class CheckoutService {
         include: { plan: { include: { day: true, month: true, week: true } } },
       });
       const promoCode = data.promo
-        ? await this.prisma.promocode.findFirst({ where: { code: data.promo } })
+        ? await this.prisma.promocode.findFirst({
+          where: {
+            code: data.promo,
+            status: 'active',
+            OR: [{ cheatId: null }, { cheatId: data.itemId }],
+          } as any,
+        })
         : null;
 
       if (!cheat || !cheat.plan[data.type])
@@ -363,14 +447,36 @@ export class CheckoutService {
         throw new BadRequestException('Недостаточно ключей');
       let price = cheat.plan[data.type]?.price;
       const initialPrice = cheat.plan[data.type]?.price;
+      let discount = 0;
       if (ref) {
-        refOwner = await this.prisma.referral.findFirst({
+        const foundReferral = await this.prisma.referral.findFirst({
           where: {
             code: ref,
           },
         });
+
+        if (foundReferral) {
+          const isOwnReferral =
+            !!foundReferral.userAccountEmail &&
+            foundReferral.userAccountEmail.toLowerCase() === user.email.toLowerCase();
+
+          const alreadyUsedReferral = await this.prisma.transaction.findFirst({
+            where: {
+              userId: user.id,
+              referralId: foundReferral.id,
+              status: 'success',
+            },
+            select: { id: true },
+          });
+
+          if (!isOwnReferral && !alreadyUsedReferral) {
+            refOwner = foundReferral;
+          }
+        }
+
         if (refOwner && refOwner.prcentToPrice > 0) {
           price -= (initialPrice / 100) * refOwner.prcentToPrice;
+          discount += refOwner.prcentToPrice;
         }
       }
       // Loyalty discount — based on user's total spend history
@@ -380,7 +486,11 @@ export class CheckoutService {
       }
 
       // Promo OR loyalty — whichever is higher wins; they cannot stack
-      const promoIsValid = !!(promoCode && promoCode.count < promoCode.maxActivate);
+      const promoIsValid = !!(
+        promoCode &&
+        promoCode.status === 'active' &&
+        promoCode.count < promoCode.maxActivate
+      );
       const promoPercent = promoIsValid ? promoCode.percent : 0;
 
       let activePromoCode: typeof promoCode | null = null;
@@ -390,19 +500,23 @@ export class CheckoutService {
         // Promo code wins
         activePromoCode = promoCode;
         price -= (initialPrice / 100) * promoPercent;
+        discount += promoPercent;
       } else if (loyaltyPercent > promoPercent && loyaltyPercent > 0) {
         // Loyalty discount wins
         activeLoyaltyPercent = loyaltyPercent;
         price -= (initialPrice / 100) * loyaltyPercent;
+        discount += loyaltyPercent;
       }
 
       if (isReseller && user && isReseller.email === user.email) {
         price -= (initialPrice / 100) * isReseller.prcent;
+        discount += isReseller.prcent;
       } else {
         isReseller = null;
       }
       if (cheat.plan[data.type].prcent > 0) {
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
+        discount += cheat.plan[data.type].prcent;
       }
       const totalPriceRub = Math.round(price * data.count);
       const baseFinalPrice =
@@ -453,6 +567,7 @@ export class CheckoutService {
               ? (cheat.plan[data.type].price * data.count) / data.usd
               : cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
+          discount,
           promoCode: activePromoCode?.code,
           loyaltyDiscount: activeLoyaltyPercent,
           count: data.count,
@@ -608,18 +723,6 @@ export class CheckoutService {
           jsonPayload: JSON.stringify(data)
         },
       });
-
-      // Update user's cumulative spend for loyalty tier tracking
-      if (transaction.userId) {
-        await (this.prisma.user as any).update({
-          where: { id: transaction.userId },
-          data: {
-            totalSpent: {
-              increment: (transaction as any).realPrice || 0,
-            },
-          },
-        });
-      }
 
       if (referral?.userAccountEmail) {
         const referralUser = await this.prisma.user.findFirst({

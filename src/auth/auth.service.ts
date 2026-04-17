@@ -50,6 +50,34 @@ export class AuthService {
       .sort((a, b) => b.minSpent - a.minSpent);
   }
 
+  private calculateTotalSpent(
+    transactions: Array<Record<string, any>> = [],
+  ): number {
+    return transactions.reduce((sum, transaction) => {
+      if (transaction?.status && transaction.status !== 'success') {
+        return sum;
+      }
+
+      return sum + Number(transaction?.realPrice || 0);
+    }, 0);
+  }
+
+  private async getUserTotalSpent(userId?: string): Promise<number> {
+    if (!userId) return 0;
+
+    const aggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        status: 'success',
+      },
+      _sum: {
+        realPrice: true,
+      },
+    });
+
+    return Number(aggregate._sum.realPrice || 0);
+  }
+
   private resolveLoyaltyStatus(
     totalSpent: number,
     tiers: Array<{ minSpent: number; percent: number }>,
@@ -63,7 +91,6 @@ export class AuthService {
       (tier) => normalizedTotalSpent < tier.minSpent,
     );
     const nextTier = nextTierIndex >= 0 ? sortedAsc[nextTierIndex] : null;
-
     return {
       totalSpent: normalizedTotalSpent,
       loyaltyPercent: matchedTier?.percent || 0,
@@ -83,7 +110,10 @@ export class AuthService {
     if (!user) return user;
 
     const loyaltyTiers = await this.getLoyaltyTiers();
-    const loyaltyData = this.resolveLoyaltyStatus(user?.totalSpent || 0, loyaltyTiers);
+    const totalSpent = Array.isArray(user?.transactions)
+      ? this.calculateTotalSpent(user.transactions)
+      : await this.getUserTotalSpent(user?.id);
+    const loyaltyData = this.resolveLoyaltyStatus(totalSpent, loyaltyTiers);
     const activeReward = user?.id
       ? await (this.prisma as any).reward.findFirst({
         where: {

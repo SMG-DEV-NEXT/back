@@ -43,6 +43,34 @@ export class UserService {
       .sort((a, b) => a.minSpent - b.minSpent);
   }
 
+  private calculateTotalSpent(
+    transactions: Array<Record<string, any>> = [],
+  ): number {
+    return transactions.reduce((sum, transaction) => {
+      if (transaction?.status && transaction.status !== 'success') {
+        return sum;
+      }
+
+      return sum + Number(transaction?.realPrice || 0);
+    }, 0);
+  }
+
+  private async getUserTotalSpent(userId?: string): Promise<number> {
+    if (!userId) return 0;
+
+    const aggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        status: 'success',
+      },
+      _sum: {
+        realPrice: true,
+      },
+    });
+
+    return Number(aggregate._sum.realPrice || 0);
+  }
+
   private resolveUserLoyaltyTier(
     totalSpent: number,
     tiers: Array<{ minSpent: number; percent: number }>,
@@ -56,7 +84,6 @@ export class UserService {
       (tier) => normalizedTotalSpent < tier.minSpent,
     );
     const nextTier = nextTierIndex >= 0 ? sortedAsc[nextTierIndex] : null;
-
     return {
       totalSpent: normalizedTotalSpent,
       loyaltyPercent: matchedTier?.percent || 0,
@@ -124,8 +151,9 @@ export class UserService {
     ]);
 
     const mappedData = await Promise.all(data.map(async (user) => {
+      const totalSpent = this.calculateTotalSpent(user.transactions as any[]);
       const loyaltyData = this.resolveUserLoyaltyTier(
-        (user as any).totalSpent || 0,
+        totalSpent,
         loyaltyTiers,
       );
       const [activeReward, rewards] = await Promise.all([
@@ -175,8 +203,9 @@ export class UserService {
 
     if (!user) return user;
 
+    const totalSpent = this.calculateTotalSpent(user.transactions as any[]);
     const loyaltyData = this.resolveUserLoyaltyTier(
-      (user as any).totalSpent || 0,
+      totalSpent,
       loyaltyTiers,
     );
 
@@ -258,8 +287,9 @@ export class UserService {
       this.getActiveReward(id),
       this.getLoyaltyTiers(),
     ]);
+    const totalSpent = await this.getUserTotalSpent(id);
     const loyaltyData = this.resolveUserLoyaltyTier(
-      (updatedUser as any).totalSpent || 0,
+      totalSpent,
       loyaltyTiers,
     );
     return {
@@ -310,8 +340,9 @@ export class UserService {
       this.getActiveReward(userId),
       this.getLoyaltyTiers(),
     ]);
+    const totalSpent = await this.getUserTotalSpent(userId);
     const loyaltyData = this.resolveUserLoyaltyTier(
-      (updatedUser as any).totalSpent || 0,
+      totalSpent,
       loyaltyTiers,
     );
     return {

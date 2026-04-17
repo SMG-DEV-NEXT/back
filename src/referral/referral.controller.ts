@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   Delete,
+  Req,
 } from '@nestjs/common';
 import { CreateReferralDto, UpdateReferralDto } from './dto';
 import { Role } from 'constants/roles';
@@ -16,6 +17,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 @Controller('referral')
 export class ReferralController {
@@ -67,6 +69,12 @@ export class ReferralController {
   @Get('check/:code')
   checkReferral(@Param('code') code: string) {
     return this.referralService.checkCode(code);
+  }
+
+  @Get('resolve/:code')
+  @UseGuards(OptionalJwtAuthGuard)
+  resolveReferral(@Param('code') code: string, @Req() req: any) {
+    return this.referralService.resolveCodeForUser(code, req.user);
   }
 
   @Post('track-view/:code')

@@ -154,6 +154,7 @@ model Cheat {
   updatedAt      DateTime @updatedAt
   isDeleted      Boolean @default(false)
   showOtherCheats Boolean? @default(false)
+  promocodes     Promocode[]
 }
 
 model Comment {
@@ -213,6 +214,8 @@ model Promocode {
   status      String   // 'active' | 'inactive'
   maxActivate Int
   count       Int
+  cheatId     String?  @db.ObjectId
+  cheat       Cheat?   @relation(fields: [cheatId], references: [id])
 }
 
 model SmtpConfig {
@@ -238,6 +241,7 @@ model Transaction {
   type       String   
   price      Float
   checkoutedPrice Float
+  discount   Float?
   promoCode  String?  
   createdAt  DateTime  @default(now())
   count      Float

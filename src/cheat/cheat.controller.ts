@@ -119,12 +119,11 @@ export class CheatController {
   @UseGuards(OptionalJwtAuthGuard)
   async getByIdClient(
     @Param() params: ParamsIdDto,
-    @Query('ref') ref,
     @Req() req: any,
   ) {
     try {
       const user = req.user;
-      return this.cheatService.getCheatView(params.id, ref, user);
+      return this.cheatService.getCheatView(params.id, user);
     } catch (error) {
       await sendErrorNotification(error);
     }

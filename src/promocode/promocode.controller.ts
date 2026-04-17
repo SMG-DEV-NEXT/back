@@ -42,9 +42,9 @@ export class PromocodeController {
     }
   }
   @Post('check')
-  async check(@Body() body: { code: string }) {
+  async check(@Body() body: { code: string; cheatId?: string }) {
     try {
-      return this.service.check(body.code);
+      return this.service.check(body.code, body.cheatId);
     } catch (error) {
       console.log(error);
       await sendErrorNotification(error);
