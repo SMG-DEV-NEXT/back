@@ -26,6 +26,33 @@ export class StatsService {
     return { id: slugOrId };
   }
 
+  async getSitemapStats() {
+    const stats = await this.prisma.stats.findMany({
+      where: {
+        type: 'published',
+        catalog: {
+          type: 'published',
+          isDeleted: false,
+        },
+        AND: [{ slug: { not: null } }, { slug: { not: '' } }],
+      },
+      select: {
+        slug: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const slugs = [...
+      new Set(stats.map((stat) => stat.slug?.trim()).filter(Boolean)),
+    ];
+
+    return {
+      data: slugs,
+    };
+  }
+
   // 1. Get all games with count of stats
   async getAllGamesWithStatsCount() {
     const stats = await this.prisma.stats.findMany({
