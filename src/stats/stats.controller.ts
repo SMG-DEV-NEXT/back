@@ -67,6 +67,15 @@ export class StatsController {
     }
   }
 
+  @Get('/sitemap')
+  async getSitemapStats() {
+    try {
+      return this.statsService.getSitemapStats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Get('/:id')
   async getStat(@Param() params: { id: string }) {
     try {
