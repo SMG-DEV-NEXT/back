@@ -120,6 +120,7 @@ export class ReferralService {
         reason: 'NOT_FOUND',
       };
     }
+    await this.incrementViewByCode(code);
 
     if (!user) {
       return {
