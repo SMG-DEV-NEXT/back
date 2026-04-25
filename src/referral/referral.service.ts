@@ -101,7 +101,7 @@ export class ReferralService {
     return referral;
   }
 
-  async resolveCodeForUser(code: string, user: User | null) {
+  async resolveCodeForUser(code: string, user: User | null, isAlreadyResolved: Boolean) {
     const referral = await this.prisma.referral.findUnique({
       where: { code },
       select: {
@@ -120,7 +120,8 @@ export class ReferralService {
         reason: 'NOT_FOUND',
       };
     }
-    await this.incrementViewByCode(code);
+    if (!isAlreadyResolved) await this.incrementViewByCode(code);
+
 
     if (!user) {
       return {

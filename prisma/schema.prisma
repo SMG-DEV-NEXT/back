@@ -28,6 +28,7 @@ model User {
   totalSpent         Float @default(0)
   balanceHistory     BalanceHistory[]
   rewards            Reward[]
+  withdrawRequests   WithdrawRequest[]
 }
 
 model Reward {
@@ -320,4 +321,18 @@ model BalanceHistory {
   type        String
   information String
   createdAt   DateTime @default(now())
+}
+
+model WithdrawRequest {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  method         String
+  telegram       String
+  paymentInfo    String
+  status         String   @default("pending")
+  note           String?
+  balanceAtTime  Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

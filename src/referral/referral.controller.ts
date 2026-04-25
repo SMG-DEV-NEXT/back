@@ -74,7 +74,7 @@ export class ReferralController {
   @Get('resolve/:code')
   @UseGuards(OptionalJwtAuthGuard)
   resolveReferral(@Param('code') code: string, @Req() req: any) {
-    return this.referralService.resolveCodeForUser(code, req.user);
+    return this.referralService.resolveCodeForUser(code, req.user, req.query.isAlreadyResolved === 'true');
   }
 
   @Post('track-view/:code')
