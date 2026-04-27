@@ -332,6 +332,7 @@ model WithdrawRequest {
   paymentInfo    String
   status         String   @default("pending")
   note           String?
+  amount         String?
   balanceAtTime  Float
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

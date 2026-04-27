@@ -28,6 +28,10 @@ export class CreateWithdrawRequestDto {
     @IsNotEmpty({ message: 'trc20_required' })
     @Matches(/^T[a-zA-Z0-9]{20,50}$/, { message: 'trc20_invalid' })
     trc20Address?: string;
+
+    @IsOptional()
+    @IsString({ message: 'amount_must_be_string' })
+    amount?: string;
 }
 
 export class UpdateWithdrawStatusDto {

@@ -50,6 +50,7 @@ export class WithdrawService {
                 method,
                 telegram: this.normalizeTelegram(dto.telegram),
                 paymentInfo,
+                amount: dto.amount ?? null,
                 balanceAtTime: balance,
                 status: 'pending',
             },
