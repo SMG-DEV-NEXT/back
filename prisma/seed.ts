@@ -66,11 +66,11 @@ async function main() {
   //     data: { titleRu: "30 дней", titleEn: "30 days" }
   //   })
   // })
-  await prisma.stats.updateMany({
-    where: {},
-    data: { slug: "test-slug", h1en: "", h1ru: "" }
-  })
-  console.log("Periods updated")
+  // await prisma.stats.updateMany({
+  //   where: {},
+  //   data: { slug: "test-slug", h1en: "", h1ru: "" }
+  // })
+  // console.log("Periods updated")
 }
 
 main()
