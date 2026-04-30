@@ -1,17 +1,16 @@
 // referral.service.ts
 import {
-  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateReferralDto, UpdateReferralDto } from './dto';
-import { MongoInvalidArgumentError } from 'mongodb';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class ReferralService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(dto: CreateReferralDto) {
     const find = await this.prisma.referral.findFirst({
@@ -26,9 +25,11 @@ export class ReferralService {
       data: {
         code: dto.code || this.generateReferralCode(15),
         owner: dto.owner,
+        userAccountEmail: dto.userAccountEmail || '',
         prcentToPrice: dto.prcentToPrice,
+        prcentToBalance: dto.prcentToBalance || 0,
         viewsCount: 0,
-      },
+      } as any,
     });
   }
   generateReferralCode(length = 6) {
@@ -59,10 +60,30 @@ export class ReferralService {
   }
 
   async update(id: string, dto: UpdateReferralDto) {
-    return this.prisma.referral.update({
-      where: { id },
-      data: { ...dto },
-    });
+    if (dto.code) {
+      const existing = await this.prisma.referral.findFirst({
+        where: {
+          code: dto.code,
+          NOT: { id },
+        },
+      });
+
+      if (existing) {
+        throw new BadRequestException('Referral code already exists');
+      }
+    }
+
+    try {
+      return await this.prisma.referral.update({
+        where: { id },
+        data: { ...dto },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new BadRequestException('Referral code already exists');
+      }
+      throw error;
+    }
   }
 
   async findByOwner(ownerId: string) {
@@ -78,6 +99,67 @@ export class ReferralService {
     });
     if (!referral) throw new NotFoundException('Referral not found');
     return referral;
+  }
+
+  async resolveCodeForUser(code: string, user: User | null, isAlreadyResolved: Boolean) {
+    const referral = await this.prisma.referral.findUnique({
+      where: { code },
+      select: {
+        id: true,
+        code: true,
+        owner: true,
+        userAccountEmail: true,
+        prcentToPrice: true,
+        prcentToBalance: true,
+      },
+    });
+
+    if (!referral) {
+      return {
+        valid: false,
+        reason: 'NOT_FOUND',
+      };
+    }
+    if (!isAlreadyResolved) await this.incrementViewByCode(code);
+
+
+    if (!user) {
+      return {
+        valid: true,
+        referral,
+      };
+    }
+
+    const isOwnReferral =
+      !!referral.userAccountEmail &&
+      referral.userAccountEmail.toLowerCase() === user.email.toLowerCase();
+
+    if (isOwnReferral) {
+      return {
+        valid: false,
+        reason: 'OWN_REFERRAL',
+      };
+    }
+
+    const alreadyUsedByUser = await this.prisma.transaction.findFirst({
+      where: {
+        userId: user.id,
+        referralId: referral.id,
+      },
+      select: { id: true },
+    });
+
+    if (alreadyUsedByUser) {
+      return {
+        valid: false,
+        reason: 'ALREADY_USED',
+      };
+    }
+
+    return {
+      valid: true,
+      referral,
+    };
   }
 
   async incrementViewByCode(code: string) {

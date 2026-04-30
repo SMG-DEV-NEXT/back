@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsString()
@@ -20,4 +20,22 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   accept: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  balance?: number;
+}
+
+export class UpdateUserBalanceDto {
+  @IsNumber()
+  balance: number;
+}
+
+export class AddRewardDto {
+  @IsOptional()
+  @IsBoolean()
+  visited?: boolean;
+
+  @IsOptional()
+  information?: Record<string, any>;
 }

@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsString,
   IsOptional,
   IsInt,
@@ -45,6 +46,10 @@ export class CheckoutDto {
 
   @IsString()
   methodPay: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isUsedBalance?: boolean;
 }
 
 export class CreatePaymentDto {

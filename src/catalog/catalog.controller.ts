@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import { Prisma } from '@prisma/client';
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateDto } from './dto';
@@ -19,7 +21,7 @@ import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('catalog')
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(private readonly catalogService: CatalogService) { }
   @Get('/top')
   async getTopCatalogs() {
     try {
@@ -29,6 +31,7 @@ export class CatalogController {
     }
   }
   @Post()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async createCatalog(@Body() data: CreateDto) {
     try {
@@ -39,6 +42,7 @@ export class CatalogController {
   }
 
   @Put(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async updateCatalog(
     @Param('id') id: string,
@@ -52,6 +56,7 @@ export class CatalogController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getAllCatalogs() {
     try {
@@ -102,6 +107,7 @@ export class CatalogController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteCatalog(@Param('id') id: string) {
     try {
@@ -112,6 +118,7 @@ export class CatalogController {
   }
 
   @Delete()
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteMultipleCatalogs(@Body('ids') ids: string[]) {
     try {

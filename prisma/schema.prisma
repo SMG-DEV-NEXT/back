@@ -24,6 +24,21 @@ model User {
   accept             Boolean? @default(false)
   transactions Transaction[]
   role               String @default("user")
+  balance            Float @default(0)
+  totalSpent         Float @default(0)
+  balanceHistory     BalanceHistory[]
+  rewards            Reward[]
+  withdrawRequests   WithdrawRequest[]
+}
+
+model Reward {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  visited     Boolean  @default(false)
+  information Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Token {
@@ -140,6 +155,7 @@ model Cheat {
   updatedAt      DateTime @updatedAt
   isDeleted      Boolean @default(false)
   showOtherCheats Boolean? @default(false)
+  promocodes     Promocode[]
 }
 
 model Comment {
@@ -199,6 +215,8 @@ model Promocode {
   status      String   // 'active' | 'inactive'
   maxActivate Int
   count       Int
+  cheatId     String?  @db.ObjectId
+  cheat       Cheat?   @relation(fields: [cheatId], references: [id])
 }
 
 model SmtpConfig {
@@ -224,6 +242,7 @@ model Transaction {
   type       String   
   price      Float
   checkoutedPrice Float
+  discount   Float?
   promoCode  String?  
   createdAt  DateTime  @default(now())
   count      Float
@@ -239,6 +258,9 @@ model Transaction {
   realPrice  Float
   methodPay  String
   jsonPayload   Json?
+  balanceDiscount Float @default(0)
+  isUsedBalance   Boolean @default(false)
+  loyaltyDiscount Float @default(0)
 }
 
 model FaqBlock {
@@ -285,7 +307,33 @@ model Referral {
   createdAt     DateTime       @default(now())
   code          String         @unique
   owner         String         // Admin user ID or name
+  userAccountEmail String      @default("")
   prcentToPrice Int
+  prcentToBalance Int          @default(0)
   viewsCount    Int            @default(0)
   transactions  Transaction[]  @relation("ReferralTransactions")
+}
+
+model BalanceHistory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  type        String
+  information String
+  createdAt   DateTime @default(now())
+}
+
+model WithdrawRequest {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  method         String
+  telegram       String
+  paymentInfo    String
+  status         String   @default("pending")
+  note           String?
+  amount         String?
+  balanceAtTime  Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

@@ -8,13 +8,17 @@ import {
 import { CheckoutDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Transaction, User } from '@prisma/client';
-import { generatorAfterCheckoutMail } from 'src/mail/generator';
+import {
+  generateCheckoutAutoRegisterMail,
+  generatorAfterCheckoutMail,
+} from 'src/mail/generator';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class CheckoutService {
@@ -27,6 +31,49 @@ export class CheckoutService {
     private mail: MailService,
     private readonly httpService: HttpService,
   ) { }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private generateTemporaryPassword(length = 12): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i += 1) {
+      const idx = Math.floor(Math.random() * chars.length);
+      password += chars[idx];
+    }
+    return password;
+  }
+
+  private async autoRegisterCheckoutUser(email: string, locale: string) {
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const normalizedEmail = this.normalizeEmail(email);
+
+    const createdUser = await this.prisma.user.create({
+      data: {
+        name: normalizedEmail.split('@')[0] || 'User',
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: 'user',
+        raiting: '0',
+        isTwoFactorEnabled: false,
+        resetCode: '',
+        accept: true,
+      },
+    });
+
+    const lang = locale === 'en' ? 'en' : 'ru';
+    await this.mail.sendFromNoreply(
+      createdUser.email,
+      lang === 'en' ? 'Your SMG account has been created' : 'Ваш аккаунт SMG создан',
+      null,
+      generateCheckoutAutoRegisterMail(temporaryPassword, lang),
+    );
+
+    return createdUser;
+  }
 
   private async getB2PayJwtToken(): Promise<string> {
     const now = Date.now();
@@ -249,20 +296,131 @@ export class CheckoutService {
     }
   }
 
+  private async createBalanceHistory(
+    userId: string,
+    type: string,
+    information: Record<string, any>,
+  ) {
+    return (this.prisma as any).balanceHistory.create({
+      data: {
+        userId,
+        type,
+        information: JSON.stringify(information),
+      },
+    });
+  }
+
+  async useFromBalance(
+    userId: string,
+    transactionPriceRub: number,
+    options: {
+      isUsd?: boolean;
+      usdRate?: number;
+      payload?: Record<string, any>;
+    } = {},
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const payload = options.payload || {};
+    const isUsd = !!options.isUsd;
+    const usdRate = Number(options.usdRate) > 0 ? Number(options.usdRate) : 1;
+
+    const balanceBefore = (user as any).balance || 0;
+    const balanceDiscountRub = Math.min(balanceBefore, transactionPriceRub);
+    const finalPriceRub = Math.max(transactionPriceRub - balanceDiscountRub, 0);
+    const finalPrice = isUsd
+      ? Number((finalPriceRub / usdRate).toFixed(2))
+      : finalPriceRub;
+    const balanceAfter = Math.max(balanceBefore - balanceDiscountRub, 0);
+
+    if (balanceDiscountRub > 0) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { balance: balanceAfter } as any,
+      });
+    }
+    void payload;
+
+    return {
+      finalPrice,
+      balanceDiscount: balanceDiscountRub,
+      balanceDiscountRub,
+      finalPriceRub,
+      balanceBefore,
+      balanceAfter,
+      isUsedBalance: balanceDiscountRub > 0,
+    };
+  }
+
+  private async getUserSuccessfulSpent(userId: string): Promise<number> {
+    const aggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        status: 'success',
+      },
+      _sum: {
+        realPrice: true,
+      },
+    });
+
+    return Number(aggregate._sum.realPrice || 0);
+  }
+
+  private async getLoyaltyDiscount(userId: string): Promise<number> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return 0;
+
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'loyalty_tiers' },
+    });
+    if (!setting) return 0;
+
+    const { tiers } = setting.settings as any;
+    if (!Array.isArray(tiers) || tiers.length === 0) return 0;
+
+    const totalSpent = await this.getUserSuccessfulSpent(userId);
+
+    // find the highest tier the user qualifies for
+    const tier = [...tiers]
+      .sort((a, b) => b.minSpent - a.minSpent)
+      .find((t) => totalSpent >= t.minSpent);
+
+    return tier?.percent || 0;
+  }
+
 
   async initiatePayment(
     data: CheckoutDto,
     ip: string,
-    user: User,
+    authUser: User,
+    clientInfo: Record<string, any> = {},
   ): Promise<any> {
     try {
+      const normalizedEmail = this.normalizeEmail(data.email);
+      data.email = normalizedEmail;
       const ref = data.ref;
       let refOwner = null;
-      const user = await this.prisma.user.findFirst({
-        where: { email: data.email },
+      let user = await this.prisma.user.findFirst({
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
       });
+
+      if (!user) {
+        user = await this.autoRegisterCheckoutUser(normalizedEmail, data.locale);
+      }
+
       let isReseller = await this.prisma.reseller.findFirst({
-        where: { email: data.email },
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
       });
 
       const planType = data.type as 'day' | 'week' | 'month';
@@ -272,7 +430,13 @@ export class CheckoutService {
         include: { plan: { include: { day: true, month: true, week: true } } },
       });
       const promoCode = data.promo
-        ? await this.prisma.promocode.findFirst({ where: { code: data.promo } })
+        ? await this.prisma.promocode.findFirst({
+          where: {
+            code: data.promo,
+            status: 'active',
+            OR: [{ cheatId: null }, { cheatId: data.itemId }],
+          } as any,
+        })
         : null;
 
       if (!cheat || !cheat.plan[data.type])
@@ -283,31 +447,108 @@ export class CheckoutService {
         throw new BadRequestException('Недостаточно ключей');
       let price = cheat.plan[data.type]?.price;
       const initialPrice = cheat.plan[data.type]?.price;
+      let discount = 0;
       if (ref) {
-        refOwner = await this.prisma.referral.findFirst({
+        const foundReferral = await this.prisma.referral.findFirst({
           where: {
             code: ref,
           },
         });
+
+        if (foundReferral) {
+          const isOwnReferral =
+            !!foundReferral.userAccountEmail &&
+            foundReferral.userAccountEmail.toLowerCase() === user.email.toLowerCase();
+
+          const alreadyUsedReferral = await this.prisma.transaction.findFirst({
+            where: {
+              userId: user.id,
+              referralId: foundReferral.id,
+              status: 'success',
+            },
+            select: { id: true },
+          });
+
+          if (!isOwnReferral && !alreadyUsedReferral) {
+            refOwner = foundReferral;
+          }
+        }
+
         if (refOwner && refOwner.prcentToPrice > 0) {
           price -= (initialPrice / 100) * refOwner.prcentToPrice;
+          discount += refOwner.prcentToPrice;
         }
       }
-      if (promoCode && promoCode.count < promoCode.maxActivate) {
-        price -= (initialPrice / 100) * promoCode.percent;
+      // Loyalty discount — based on user's total spend history
+      let loyaltyPercent = 0;
+      if (user?.id) {
+        loyaltyPercent = await this.getLoyaltyDiscount(user.id);
       }
-      if (isReseller && isReseller.email === user.email) {
+
+      // Promo OR loyalty — whichever is higher wins; they cannot stack
+      const promoIsValid = !!(
+        promoCode &&
+        promoCode.status === 'active' &&
+        promoCode.count < promoCode.maxActivate
+      );
+      const promoPercent = promoIsValid ? promoCode.percent : 0;
+
+      let activePromoCode: typeof promoCode | null = null;
+      let activeLoyaltyPercent = 0;
+
+      if (promoPercent >= loyaltyPercent && promoPercent > 0) {
+        // Promo code wins
+        activePromoCode = promoCode;
+        price -= (initialPrice / 100) * promoPercent;
+        discount += promoPercent;
+      } else if (loyaltyPercent > promoPercent && loyaltyPercent > 0) {
+        // Loyalty discount wins
+        activeLoyaltyPercent = loyaltyPercent;
+        price -= (initialPrice / 100) * loyaltyPercent;
+        discount += loyaltyPercent;
+      }
+
+      if (isReseller && user && isReseller.email === user.email) {
         price -= (initialPrice / 100) * isReseller.prcent;
+        discount += isReseller.prcent;
       } else {
         isReseller = null;
       }
       if (cheat.plan[data.type].prcent > 0) {
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
+        discount += cheat.plan[data.type].prcent;
       }
-      const finalPrice =
+      const totalPriceRub = Math.round(price * data.count);
+      const baseFinalPrice =
         data.currency === 'USD'
-          ? Math.round(price * data.count) / data.usd
-          : Math.round(price * data.count); // рубли * кол-во
+          ? Number((totalPriceRub / data.usd).toFixed(2))
+          : totalPriceRub; // рубли * кол-во
+
+      let finalPrice = baseFinalPrice;
+      let balanceDiscount = 0;
+      let isUsedBalance = false;
+
+      if (data.isUsedBalance && user?.id) {
+        const balanceUsage = await this.useFromBalance(user.id, totalPriceRub, {
+          isUsd: data.locale === 'en',
+          usdRate: data.usd,
+          payload: {
+            source: 'checkout',
+            email: data.email,
+            itemId: data.itemId,
+            type: data.type,
+            count: data.count,
+            currency: data.currency,
+            ip,
+            authUserId: authUser?.id || null,
+            clientInfo,
+          },
+        });
+        finalPrice = balanceUsage.finalPrice;
+        balanceDiscount = balanceUsage.balanceDiscount;
+        isUsedBalance = balanceUsage.isUsedBalance;
+      }
+
       // 1. Создаём транзакцию с пометкой "pending"
       // @ts-nocheck
       const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -326,7 +567,9 @@ export class CheckoutService {
               ? (cheat.plan[data.type].price * data.count) / data.usd
               : cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
-          promoCode: promoCode?.code,
+          discount,
+          promoCode: activePromoCode?.code,
+          loyaltyDiscount: activeLoyaltyPercent,
           count: data.count,
           ip,
           // @ts-ignore
@@ -336,17 +579,24 @@ export class CheckoutService {
           currency: data.currency,
           realPrice: Math.round(price * data.count),
           methodPay: data.methodPay,
-        },
+          balanceDiscount,
+          isUsedBalance,
+        } as any,
       });
+
+      if (finalPrice <= 0) {
+
+        await this.handleCallback({ MERCHANT_ORDER_ID: orderId });
+        return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
+      }
+
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      // if (process.env.FRONT_URL === 'http://localhost:3000') {
-      //   console.log('Development mode: Overriding payUrl to localhost');
-      //   await this.handleCallback({
-      //     MERCHANT_ORDER_ID: orderId,
-      //   });
-      //   const payUrl = `http://localhost:3000/${data.locale}?MERCHANT_ORDER_ID=${orderId}`;
-      //   return payUrl;
-      // }
+      if (process.env.FRONT_URL === 'http://localhost:3000' || process.env.FRONT_URL === 'https://dev.smgcheats.com') {
+        await this.handleCallback({
+          MERCHANT_ORDER_ID: orderId,
+        });
+        return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
+      }
       let payUrl = '';
       switch (data.methodPay) {
         case 'fk':
@@ -360,7 +610,10 @@ export class CheckoutService {
           break;
         case 'pally':
           payUrl = await this.createBill({
-            amount: Math.round(price * data.count),
+            amount:
+              data.currency === 'USD'
+                ? Math.round(finalPrice * data.usd)
+                : Math.round(finalPrice),
             orderId,
           });
           break;
@@ -412,6 +665,7 @@ export class CheckoutService {
         throw new NotFoundException('Transaction not found');
       }
       const txId = transaction.id;
+      if (!transaction || transaction.status === 'success') return;
       //@ts-ignore
       if (transaction.promoCode) {
         await this.prisma.promocode.update({
@@ -423,11 +677,11 @@ export class CheckoutService {
           },
         });
       }
+      let referral = null;
       if (transaction.referralId) {
-        const referral = await this.prisma.referral.findUnique({
+        referral = await this.prisma.referral.findUnique({
           where: { id: transaction.referralId },
         });
-
         if (referral) {
           await this.prisma.referral.update({
             where: { id: transaction.referralId },
@@ -441,8 +695,6 @@ export class CheckoutService {
           console.warn('Referral not found, skipping connect');
         }
       }
-      if (!transaction || transaction.status === 'success') return;
-
       const cheat = await this.prisma.cheat.findFirst({
         where: { id: transaction.cheatId, isDeleted: false },
         include: { plan: { include: { [transaction.type]: true } } },
@@ -471,6 +723,107 @@ export class CheckoutService {
           jsonPayload: JSON.stringify(data)
         },
       });
+
+      if (referral?.userAccountEmail) {
+        const referralUser = await this.prisma.user.findFirst({
+          where: {
+            email: {
+              equals: referral.userAccountEmail,
+              mode: 'insensitive',
+            },
+          },
+        });
+
+        if (referralUser && referralUser.id !== transaction.userId) {
+          const referralBonusPercent = Number(
+            (referral as any)?.prcentToBalance || 0,
+          );
+          if (referralBonusPercent > 0) {
+            const checkoutedPriceRub = Number(
+              Math.max(
+                Number((transaction as any).realPrice || 0) -
+                Number((transaction as any).balanceDiscount || 0),
+                0,
+              ).toFixed(2),
+            );
+            const referralBonus = Number(
+              ((checkoutedPriceRub * referralBonusPercent) / 100).toFixed(2),
+            );
+
+            if (referralBonus > 0) {
+              const balanceBefore = (referralUser as any).balance || 0;
+              const balanceAfter = balanceBefore + referralBonus;
+
+              await this.prisma.user.update({
+                where: { id: referralUser.id },
+                data: {
+                  balance: balanceAfter,
+                } as any,
+              });
+
+              await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
+                action: 'REFERRAL_BONUS_CALLBACK',
+                balanceBefore,
+                balanceAfter,
+                bonusPercent: referralBonusPercent,
+                bonusAmount: referralBonus,
+                bonusBaseRub: checkoutedPriceRub,
+                referralId: referral.id,
+                referralCode: referral.code,
+                referralOwner: referral.owner,
+                referralUserEmail: referral.userAccountEmail,
+                buyerEmail: transaction.email,
+                buyerUserId: transaction.userId || null,
+                transactionId: transaction.id,
+                orderId: transaction.orderId,
+                checkoutedPrice: transaction.checkoutedPrice,
+                currency: transaction.currency,
+                callbackPayload: data,
+                createdAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      if (transaction.userId && (transaction as any).isUsedBalance) {
+        const checkoutUser = await this.prisma.user.findUnique({
+          where: { id: transaction.userId },
+        });
+
+        if (checkoutUser) {
+          const balanceAfter = (checkoutUser as any).balance || 0;
+          const balanceDiscount = (transaction as any).balanceDiscount || 0;
+          const balanceBefore = balanceAfter + balanceDiscount;
+
+          await this.createBalanceHistory(transaction.userId, 'CHECKOUT', {
+            action: 'CHECKOUT',
+            transactionId: transaction.id,
+            orderId: transaction.orderId,
+            email: transaction.email,
+            cheatId: transaction.cheatId,
+            type: transaction.type,
+            count: transaction.count,
+            currency: transaction.currency,
+            methodPay: transaction.methodPay,
+            price: transaction.price,
+            checkoutedPrice: transaction.checkoutedPrice,
+            realPrice: transaction.realPrice,
+            codes: checkoutKeyses,
+            ip: transaction.ip,
+            promoCode: transaction.promoCode,
+            referralId: transaction.referralId,
+            reseller: transaction.reseller,
+            isUsedBalance: (transaction as any).isUsedBalance || false,
+            balanceDiscount,
+            balanceBefore,
+            balanceAfter,
+            callbackPayload: data,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+
       await this.prisma.period.update({
         //@ts-ignore
         where: { id: plan.id },

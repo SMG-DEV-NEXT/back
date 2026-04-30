@@ -11,14 +11,17 @@ import {
 import { FaqService } from './faq.service';
 import { CreateStatDto, UpdateBlockDto } from './dto';
 import { UpdateStatDto } from './dto';
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('faq')
 export class FaqController {
-  constructor(private readonly faqService: FaqService) {}
+  constructor(private readonly faqService: FaqService) { }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/init')
   async initBlocks() {
@@ -29,6 +32,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/remove')
   async deleteStat(@Body() dto: { id: string }) {
@@ -39,6 +43,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/block/:id')
   async getBlock(@Param('id') id: string) {
@@ -49,6 +54,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/block/:id')
   async updateBlock(@Param('id') id: string, @Body() dto: UpdateBlockDto) {
@@ -59,6 +65,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('admin/stat')
   async createStat(@Body() dto: CreateStatDto) {
@@ -69,6 +76,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Patch('admin/stat/:id')
   async updateStat(@Param('id') id: string, @Body() dto: UpdateStatDto) {
@@ -79,6 +87,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/stat/:id')
   async getStat(@Param('id') id: string) {
@@ -89,6 +98,7 @@ export class FaqController {
     }
   }
 
+  @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Get('admin/faq')
   async getAdminFaq() {

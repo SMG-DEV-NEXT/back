@@ -147,6 +147,8 @@ export class AuthController {
           name: true,
           email: true,
           role: true,
+          balance: true,
+          totalSpent: true,
           logo: true,
           twoFactorSecret: true,
           isTwoFactorEnabled: true,
@@ -159,7 +161,10 @@ export class AuthController {
           },
         },
       });
-      return res.status(200).send(user);
+      const userWithLoyalty = await this.authService.attachClientUserLoyalty(
+        user as any,
+      );
+      return res.status(200).send(userWithLoyalty);
     }
     return res.status(200).send(null);
   }

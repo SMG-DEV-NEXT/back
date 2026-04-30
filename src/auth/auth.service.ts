@@ -29,25 +29,145 @@ export class AuthService {
     private recaptchaService: RecaptchaService,
   ) { }
 
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  private async getLoyaltyTiers() {
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'loyalty_tiers' },
+    });
+
+    const tiers = (setting?.settings as any)?.tiers;
+    if (!Array.isArray(tiers)) return [];
+
+    return [...tiers]
+      .map((tier) => ({
+        minSpent: Number(tier?.minSpent || 0),
+        percent: Number(tier?.percent || 0),
+      }))
+      .filter((tier) => tier.minSpent >= 0 && tier.percent > 0)
+      .sort((a, b) => b.minSpent - a.minSpent);
+  }
+
+  private calculateTotalSpent(
+    transactions: Array<Record<string, any>> = [],
+  ): number {
+    return transactions.reduce((sum, transaction) => {
+      if (transaction?.status && transaction.status !== 'success') {
+        return sum;
+      }
+
+      return sum + Number(transaction?.realPrice || 0);
+    }, 0);
+  }
+
+  private async getUserTotalSpent(userId?: string): Promise<number> {
+    if (!userId) return 0;
+
+    const aggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        status: 'success',
+      },
+      _sum: {
+        realPrice: true,
+      },
+    });
+
+    return Number(aggregate._sum.realPrice || 0);
+  }
+
+  private resolveLoyaltyStatus(
+    totalSpent: number,
+    tiers: Array<{ minSpent: number; percent: number }>,
+  ) {
+    const normalizedTotalSpent = Number(totalSpent || 0);
+    const sortedAsc = [...tiers].sort((a, b) => a.minSpent - b.minSpent);
+    const matchedTier = [...sortedAsc]
+      .reverse()
+      .find((tier) => normalizedTotalSpent >= tier.minSpent);
+    const nextTierIndex = sortedAsc.findIndex(
+      (tier) => normalizedTotalSpent < tier.minSpent,
+    );
+    const nextTier = nextTierIndex >= 0 ? sortedAsc[nextTierIndex] : null;
+    return {
+      totalSpent: normalizedTotalSpent,
+      loyaltyPercent: matchedTier?.percent || 0,
+      loyaltyMinSpent: matchedTier?.minSpent || 0,
+      nextLoyaltyPosition: nextTierIndex >= 0 ? nextTierIndex + 1 : null,
+      nextLoyaltyTier: nextTier,
+      nextLoyaltyMinSpent: nextTier?.minSpent ?? null,
+      nextLoyaltyPercent: nextTier?.percent ?? null,
+      nextLoyaltyAmountLeft: nextTier
+        ? Math.max(nextTier.minSpent - normalizedTotalSpent, 0)
+        : 0,
+      isMaxLoyaltyTier: !!sortedAsc.length && !nextTier,
+    };
+  }
+
+  private async attachLoyaltyData<T extends Record<string, any>>(user: T): Promise<T> {
+    if (!user) return user;
+
+    const loyaltyTiers = await this.getLoyaltyTiers();
+    const totalSpent = Array.isArray(user?.transactions)
+      ? this.calculateTotalSpent(user.transactions)
+      : await this.getUserTotalSpent(user?.id);
+    const loyaltyData = this.resolveLoyaltyStatus(totalSpent, loyaltyTiers);
+    const activeReward = user?.id
+      ? await (this.prisma as any).reward.findFirst({
+        where: {
+          userId: user.id,
+          visited: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+      : null;
+
+    return {
+      ...user,
+      ...loyaltyData,
+      activeReward,
+      activePoint: activeReward,
+    };
+  }
+
+  private async findUserByEmail<T = User>(
+    email: string,
+    options: any = {},
+  ) {
+    return this.prisma.user.findFirst({
+      ...options,
+      where: {
+        ...(options?.where || {}),
+        email: {
+          equals: this.normalizeEmail(email),
+          mode: 'insensitive',
+        },
+      },
+    });
+  }
+
   async register(
     name: string,
     email: string,
     password: string,
     lang: string,
     token: string,
-  ): Promise<User> {
+  ): Promise<any> {
     await this.recaptchaService.validate(token);
+    const normalizedEmail = this.normalizeEmail(email);
     const hashedPassword = await bcrypt.hash(password, 10);
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const existingUser = await this.findUserByEmail(normalizedEmail);
     if (existingUser) {
       throw new BadRequestException('email_already_exists');
     }
     const user = await this.prisma.user.create({
       data: {
         name,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         role: "user",
         raiting: '0',
@@ -73,13 +193,11 @@ export class AuthService {
           `${process.env.FRONT_URL}?token=${authToken.token}`,
         ),
     );
-    return user;
+    return this.attachLoyaltyData(user as any);
   }
 
   async resendEmail(email: string, lang: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.findUserByEmail(email);
     if (!user) {
       throw new BadRequestException('user_not_found');
     }
@@ -100,8 +218,7 @@ export class AuthService {
   }
 
   async login(email: string, password: string, code: string): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+    const user = await this.findUserByEmail(email, {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
     if (!user) {
@@ -121,10 +238,11 @@ export class AuthService {
       }
     }
     const tokens = this.generateTokens(user.id);
+    const userWithLoyalty = await this.attachLoyaltyData(user as any);
     return {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      user,
+      user: userWithLoyalty,
     };
   }
 
@@ -143,8 +261,9 @@ export class AuthService {
       throw new BadRequestException('email_not_found');
     }
     const { password, ...data } = user;
+    const dataWithLoyalty = await this.attachLoyaltyData(data as any);
     const tokens = this.generateTokens(id);
-    return { data, tokens };
+    return { data: dataWithLoyalty, tokens };
   }
 
   async refreshToken(refreshToken: string): Promise<{ access_token: string }> {
@@ -214,7 +333,7 @@ export class AuthService {
   }
 
   async getUserByEmail(email: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.findUserByEmail(email);
     return user;
   }
 
@@ -298,11 +417,11 @@ export class AuthService {
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: { resetCode: `${code}` },
     });
     await this.mailer.sendFromNoreply(
-      email,
+      user.email,
       'Reset Your Password',
       null,
       generateForgetPasswordMail(code, lang),
@@ -324,7 +443,7 @@ export class AuthService {
     }
     if (user.resetCode === code) {
       await this.prisma.user.update({
-        where: { email },
+        where: { id: user.id },
         data: { resetCode: '' },
       });
       return true;
@@ -339,7 +458,7 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: { password: hashedPassword },
     });
     return true;
@@ -369,6 +488,10 @@ export class AuthService {
     });
 
     const { password: _, ...data } = update;
-    return data;
+    return this.attachLoyaltyData(data as any);
+  }
+
+  async attachClientUserLoyalty<T extends Record<string, any>>(user: T) {
+    return this.attachLoyaltyData(user);
   }
 }

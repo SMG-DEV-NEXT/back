@@ -11,13 +11,16 @@ import {
 } from '@nestjs/common';
 import { PromocodeService } from './promocode.service';
 import { CreatePromocodeDto, UpdatePromocodeDto } from './dto';
+import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 
 @Controller('promocode')
+@Roles(Role.ADMIN)
 export class PromocodeController {
-  constructor(private readonly service: PromocodeService) {}
+  constructor(private readonly service: PromocodeService) { }
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -39,9 +42,9 @@ export class PromocodeController {
     }
   }
   @Post('check')
-  async check(@Body() body: { code: string }) {
+  async check(@Body() body: { code: string; cheatId?: string }) {
     try {
-      return this.service.check(body.code);
+      return this.service.check(body.code, body.cheatId);
     } catch (error) {
       console.log(error);
       await sendErrorNotification(error);

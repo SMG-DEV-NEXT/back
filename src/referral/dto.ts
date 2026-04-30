@@ -8,8 +8,16 @@ export class CreateReferralDto {
   @IsString()
   owner: string;
 
+  @IsOptional()
+  @IsString()
+  userAccountEmail?: string;
+
   @IsInt()
   prcentToPrice: number;
+
+  @IsOptional()
+  @IsInt()
+  prcentToBalance?: number;
 }
 
 export class UpdateReferralDto {
@@ -18,6 +26,18 @@ export class UpdateReferralDto {
   code?: string;
 
   @IsOptional()
+  @IsString()
+  owner?: string;
+
+  @IsOptional()
+  @IsString()
+  userAccountEmail?: string;
+
+  @IsOptional()
   @IsInt()
   prcentToPrice?: number;
+
+  @IsOptional()
+  @IsInt()
+  prcentToBalance?: number;
 }

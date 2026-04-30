@@ -21,6 +21,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { ReferralModule } from './referral/referral.module';
 import { TokenModule } from './token/token.module';
 import { UserModule } from './user/user.module';
+import { WithdrawModule } from './withdraw/withdraw.module';
 @Module({
   imports: [
     AuthModule,
@@ -41,6 +42,7 @@ import { UserModule } from './user/user.module';
     ReferralModule,
     TokenModule,
     UserModule,
+    WithdrawModule,
   ],
   controllers: [StaticController],
   providers: [PrismaService, MailService],
