@@ -215,7 +215,7 @@ export class CheckoutService {
       form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
       form.append('currency_in', 'RUB');
       form.append('custom', '');
-      form.append('payer_pays_commission', '1');
+      form.append('payer_pays_commission', '0');
       form.append('name', 'Платёж');
 
       const url = 'https://pal24.pro/api/v1/bill/create';
@@ -438,7 +438,7 @@ export class CheckoutService {
           } as any,
         })
         : null;
-
+      console.log(promoCode)
       if (!cheat || !cheat.plan[data.type])
         throw new NotFoundException('Product not found');
 
@@ -589,6 +589,7 @@ export class CheckoutService {
         await this.handleCallback({ MERCHANT_ORDER_ID: orderId });
         return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
       }
+      console.log(finalPrice)
 
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
       if (process.env.FRONT_URL === 'http://localhost:3000' || process.env.FRONT_URL === 'https://dev.smgcheats.com') {
