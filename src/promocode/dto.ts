@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
 export enum PromocodeStatus {
@@ -22,8 +22,9 @@ export class CreatePromocodeDto {
   maxActivate: number;
 
   @IsOptional()
-  @IsString()
-  cheatId?: string | null;
+  @IsArray()
+  @IsString({ each: true })
+  cheats?: string[];
 }
 
 export class UpdatePromocodeDto extends PartialType(CreatePromocodeDto) { }
