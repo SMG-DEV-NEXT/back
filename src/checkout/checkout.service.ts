@@ -434,7 +434,7 @@ export class CheckoutService {
           where: {
             code: data.promo,
             status: 'active',
-            OR: [{ cheatId: null }, { cheatId: data.itemId }],
+            OR: [{ cheatIds: { isEmpty: true } }, { cheatIds: { has: data.itemId } }],
           } as any,
         })
         : null;

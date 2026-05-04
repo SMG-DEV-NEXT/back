@@ -51,6 +51,66 @@ async function main() {
   }
 
   console.log(`\nDone! Updated ${updated} users and prepared loyalty settings.`);
+
+  console.log('3) Migrating legacy promocode.cheatId into promocode.cheatIds[]...');
+  const rawPromocodesResult = await prisma.$runCommandRaw({
+    find: 'Promocode',
+    filter: {
+      cheatId: { $exists: true, $ne: null },
+    },
+  });
+
+  const rawPromocodes =
+    ((rawPromocodesResult as any)?.cursor?.firstBatch as Array<any> | undefined) || [];
+
+  let migratedPromocodes = 0;
+  for (const rawPromo of rawPromocodes) {
+    const promoId = String(rawPromo?._id || '');
+    const cheatId = String(rawPromo?.cheatId || '');
+
+    if (!promoId || !cheatId) continue;
+
+    const promo: any = await prisma.promocode.findUnique({ where: { id: promoId } });
+    const currentCheatIds: string[] = Array.isArray(promo?.cheatIds) ? promo.cheatIds : [];
+    const alreadyConnected = currentCheatIds.includes(cheatId);
+
+    if (!alreadyConnected) {
+      await prisma.promocode.update({
+        where: { id: promoId },
+        data: {
+          cheatIds: [...currentCheatIds, cheatId],
+        },
+      } as any);
+
+      const cheat = await prisma.cheat.findUnique({ where: { id: cheatId } as any });
+      const currentPromoIds: string[] = Array.isArray((cheat as any)?.promocodeIds)
+        ? (cheat as any).promocodeIds
+        : [];
+
+      if (!currentPromoIds.includes(promoId)) {
+        await prisma.cheat.update({
+          where: { id: cheatId },
+          data: {
+            promocodeIds: [...currentPromoIds, promoId],
+          },
+        } as any);
+      }
+
+      migratedPromocodes += 1;
+    }
+
+    await prisma.$runCommandRaw({
+      update: 'Promocode',
+      updates: [
+        {
+          q: { _id: rawPromo._id },
+          u: { $unset: { cheatId: '' } },
+        },
+      ],
+    });
+  }
+
+  console.log(`   Migrated ${migratedPromocodes} promocode(s).`);
   // const allPlans = await prisma.plan.findMany();
   // allPlans.forEach(async (plan) => {
   //   await prisma.period.update({

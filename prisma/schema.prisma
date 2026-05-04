@@ -155,7 +155,8 @@ model Cheat {
   updatedAt      DateTime @updatedAt
   isDeleted      Boolean @default(false)
   showOtherCheats Boolean? @default(false)
-  promocodes     Promocode[]
+  promocodeIds   String[] @default([]) @db.ObjectId
+  promocodes     Promocode[] @relation(fields: [promocodeIds], references: [id])
 }
 
 model Comment {
@@ -211,12 +212,13 @@ model Contact {
 model Promocode {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   code        String   @unique
-  percent     Int      // Max 100
-  status      String   // 'active' | 'inactive'
+  percent     Int
+  status      String
   maxActivate Int
   count       Int
-  cheatId     String?  @db.ObjectId
-  cheat       Cheat?   @relation(fields: [cheatId], references: [id])
+
+  cheatIds    String[] @default([]) @db.ObjectId
+  cheats      Cheat[] @relation(fields: [cheatIds], references: [id])
 }
 
 model SmtpConfig {
