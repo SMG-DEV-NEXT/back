@@ -9,8 +9,10 @@ import { TwoFactorAuthService } from 'src/twofactor/towfactor.service';
 import { MailService } from 'src/mail/mail.service';
 import { TokenService } from 'src/token/token.service';
 import { RecaptchaService } from 'src/recaptcha/recaptcha.service';
+import { AuditModule } from 'src/audit/audit.module';
 @Module({
   imports: [
+    AuditModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET, // Ensure you have JWT_SECRET in your .env
       signOptions: { expiresIn: '1d' }, // Default access token expiry
