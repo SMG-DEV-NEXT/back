@@ -128,8 +128,8 @@ export class StatsController {
   }
 
   // 6. Delete a stat (Only Admin)
-  @UseGuards(RolesGuard)
-  @Delete('/:statId')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async deleteStat(@Param('statId') statId: string) {
     try {
       return this.statsService.deleteStat(statId);

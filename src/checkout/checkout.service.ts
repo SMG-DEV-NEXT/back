@@ -851,11 +851,11 @@ export class CheckoutService {
     });
     if (!transaction)
       throw new UnprocessableEntityException('The product already opened');
+
     await this.prisma.transaction.update({
       where: { id: transaction.id },
       data: { isVisited: true },
     });
-    // if (!transaction.isVisited) return transaction;
     return transaction;
   }
 
