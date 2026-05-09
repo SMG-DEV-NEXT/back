@@ -22,6 +22,7 @@ import * as crypto from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
 import * as bcrypt from 'bcryptjs';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class CheckoutService {
@@ -39,6 +40,7 @@ export class CheckoutService {
     private prisma: PrismaService,
     private mail: MailService,
     private readonly httpService: HttpService,
+    private readonly audit: AuditService,
   ) { }
 
   private normalizeEmail(email: string): string {
@@ -47,6 +49,17 @@ export class CheckoutService {
 
   private securityLog(event: string, details: Record<string, any> = {}) {
     this.logger.warn({ event, ...details });
+    void this.audit.record({
+      type: 'security',
+      event,
+      severity: 'warn',
+      userId: details.authUserId || details.userId || null,
+      userEmail: details.authUserEmail || details.email || details.checkoutEmail || null,
+      ip: details.ip || null,
+      method: details.method || null,
+      path: details.path || null,
+      metadata: details,
+    });
   }
 
   private roundMoney(value: number): number {

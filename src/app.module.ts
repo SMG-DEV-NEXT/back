@@ -22,8 +22,10 @@ import { ReferralModule } from './referral/referral.module';
 import { TokenModule } from './token/token.module';
 import { UserModule } from './user/user.module';
 import { WithdrawModule } from './withdraw/withdraw.module';
+import { AuditModule } from './audit/audit.module';
 @Module({
   imports: [
+    AuditModule,
     AuthModule,
     StatsModule,
     CatalogModule,
