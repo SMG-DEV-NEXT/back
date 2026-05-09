@@ -19,12 +19,6 @@ import { generateTransaction } from 'src/utils/generateTransaction';
 import { Role } from 'constants/roles';
 import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
-const WHITELIST = new Set([
-  '168.119.157.136',
-  '168.119.60.227',
-  '178.154.197.79',
-  '51.250.54.238',
-]);
 
 function getClientIp(req: Request): string {
   const ipHeader =
@@ -62,20 +56,16 @@ export class CheckoutController {
 
   @Post()
   async checkout(@Body() data: CheckoutDto, @Req() req: any) {
-    try {
-      const user = await req.user;
-      const ip =
-        req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
-        req.socket.remoteAddress;
-      return this.checkoutService.initiatePayment(
-        data,
-        ip,
-        user,
-        this.getClientInfo(req),
-      );
-    } catch (error) {
-      await sendErrorNotification(error);
-    }
+    const user = await req.user;
+    const ip =
+      req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
+      req.socket.remoteAddress;
+    return this.checkoutService.initiatePayment(
+      data,
+      ip,
+      user,
+      this.getClientInfo(req),
+    );
   }
 
   @Get('/client')
@@ -108,15 +98,17 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
-    // if (!WHITELIST.has(ip)) {
-    //   console.log('hack');
-    //   return res.status(403).send('hack');
-    // }
-    return this.checkoutService.handleCallback(body);
+    const result = await this.checkoutService.handleCallback(body, {
+      provider: 'fk',
+      ip,
+      headers: req.headers as Record<string, any>,
+    });
+    return res.send(result);
   }
 
   @Post('/b2pay/callback')
-  async b2payCallback(@Body() body: any) {
+  @HttpCode(200)
+  async b2payCallback(@Body() body: any, @Req() req: Request) {
     const status = (body?.status || '').toLowerCase();
     const orderId =
       body?.metadata?.tracking_id ||
@@ -127,9 +119,17 @@ export class CheckoutController {
     if (!orderId) return { ok: false };
 
     if (['approved', 'success', 'succeeded', 'paid', 'completed'].includes(status)) {
-      await this.checkoutService.handleCallback({
-        MERCHANT_ORDER_ID: orderId,
-      });
+      await this.checkoutService.handleCallback(
+        {
+          MERCHANT_ORDER_ID: orderId,
+          providerPayload: body,
+        },
+        {
+          provider: 'b2pay',
+          ip: getClientIp(req),
+          headers: req.headers as Record<string, any>,
+        },
+      );
     }
 
     return { ok: true };

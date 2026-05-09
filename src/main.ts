@@ -44,7 +44,35 @@ async function bootstrap() {
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     },
   });
-  // for rache limit
+  app.use(
+    '/api/checkout/callback',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+  app.use(
+    '/api/checkout/b2pay/callback',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+  app.use(
+    '/api/checkout',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+
+  // for rate limit
   if (process.env.NODE_ENV !== 'development') {
     app.use(
       rateLimit({
@@ -54,7 +82,13 @@ async function bootstrap() {
     );
   }
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.use(
     helmet({
       referrerPolicy: { policy: 'origin-when-cross-origin' },

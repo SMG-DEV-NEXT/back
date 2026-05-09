@@ -1,13 +1,16 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CheckoutDto } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Transaction, User } from '@prisma/client';
+import { Prisma, Transaction, User } from '@prisma/client';
 import {
   generateCheckoutAutoRegisterMail,
   generatorAfterCheckoutMail,
@@ -22,6 +25,12 @@ import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+  private readonly allowedPaymentMethods = new Set(['fk', 'pally', 'b2pay']);
+  private readonly allowedCurrencies = new Set(['RUB', 'USD']);
+  private readonly maxCheckoutPriceRub = Number(
+    process.env.MAX_CHECKOUT_PRICE_RUB || 1_000_000,
+  );
   private b2payJwtToken: string | null = null;
   private b2payJwtExpiresAt = 0;
   private b2payAuthLockedUntil = 0;
@@ -34,6 +43,212 @@ export class CheckoutService {
 
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
+  }
+
+  private securityLog(event: string, details: Record<string, any> = {}) {
+    this.logger.warn({ event, ...details });
+  }
+
+  private roundMoney(value: number): number {
+    return Number(value.toFixed(2));
+  }
+
+  private assertFiniteMoney(value: number, label: string) {
+    if (!Number.isFinite(value) || Number.isNaN(value)) {
+      this.securityLog('invalid_price', { label, value });
+      throw new BadRequestException('Invalid checkout amount');
+    }
+    if (value < 0) {
+      this.securityLog('negative_price_attempt', { label, value });
+      throw new BadRequestException('Invalid checkout amount');
+    }
+  }
+
+  validateCount(count: number) {
+    // Prevents negative quantity and inventory exhaustion attacks from crafted Postman payloads.
+    if (!Number.isInteger(count) || count <= 0 || count > 10) {
+      this.securityLog('invalid_count', { count });
+      throw new BadRequestException('Invalid count');
+    }
+  }
+
+  validateCurrency(currency: string) {
+    // Only known currencies are accepted so attackers cannot force unsupported conversion branches.
+    if (!this.allowedCurrencies.has(currency)) {
+      this.securityLog('invalid_currency', { currency });
+      throw new BadRequestException('Invalid currency');
+    }
+  }
+
+  validatePaymentMethod(methodPay: string) {
+    // Payment provider is selected server-side from a whitelist to avoid fake/unimplemented methods.
+    if (!this.allowedPaymentMethods.has(methodPay)) {
+      this.securityLog('invalid_methodPay', { methodPay });
+      throw new BadRequestException('Invalid payment method');
+    }
+  }
+
+  validateDiscount(percent: number, source: string) {
+    // Percent limits block negative-price and free-checkout abuse via invalid promo/referral/reseller data.
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      this.securityLog(`invalid_${source}`, { percent });
+      throw new BadRequestException('Invalid discount');
+    }
+  }
+
+  validateFinalPrice(args: {
+    basePriceRub: number;
+    finalPriceRub: number;
+    discountPercent: number;
+    balanceDiscountRub?: number;
+  }) {
+    this.assertFiniteMoney(args.basePriceRub, 'basePriceRub');
+    this.assertFiniteMoney(args.finalPriceRub, 'finalPriceRub');
+
+    if (args.basePriceRub > this.maxCheckoutPriceRub) {
+      this.securityLog('max_price_limit_exceeded', {
+        basePriceRub: args.basePriceRub,
+      });
+      throw new BadRequestException('Invalid checkout amount');
+    }
+
+    if (args.discountPercent > 100) {
+      this.securityLog('invalid_discount', {
+        discountPercent: args.discountPercent,
+      });
+      throw new BadRequestException('Invalid discount');
+    }
+
+    const legitimateFreeCheckout =
+      args.discountPercent === 100 ||
+      Number(args.balanceDiscountRub || 0) >= args.basePriceRub;
+
+    // Zero totals are allowed only when server-validated discounts or balance really cover the order.
+    if (args.finalPriceRub === 0 && !legitimateFreeCheckout) {
+      this.securityLog('free_checkout_abuse', args);
+      throw new BadRequestException('Invalid checkout amount');
+    }
+  }
+
+  private getRequestSecret(headers: Record<string, any>, names: string[]) {
+    for (const name of names) {
+      const value = headers?.[name] || headers?.[name.toLowerCase()];
+      if (Array.isArray(value)) return value[0];
+      if (value) return String(value);
+    }
+    return '';
+  }
+
+  private safeJson(value: any) {
+    return JSON.stringify(value ?? {});
+  }
+
+  private timingSafeEqualHex(a: string, b: string) {
+    if (!a || !b) return false;
+    if (!/^[a-f0-9]+$/i.test(a) || !/^[a-f0-9]+$/i.test(b)) return false;
+    const left = Buffer.from(a, 'hex');
+    const right = Buffer.from(b, 'hex');
+    return left.length === right.length && crypto.timingSafeEqual(left, right);
+  }
+
+  private hmacPayload(payload: any, secret: string) {
+    const cleanPayload = { ...(payload || {}) };
+    delete cleanPayload.signature;
+    delete cleanPayload.sign;
+    delete cleanPayload.SIGN;
+    delete cleanPayload.hash;
+    const signString = Object.keys(cleanPayload)
+      .sort()
+      .map((key) => `${key}=${JSON.stringify(cleanPayload[key])}`)
+      .join('&');
+
+    return crypto.createHmac('sha256', secret).update(signString).digest('hex');
+  }
+
+  validateCallback(
+    data: any,
+    context: {
+      provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
+      ip?: string;
+      headers?: Record<string, any>;
+    } = {},
+  ) {
+    const provider = context.provider || 'fk';
+    const headers = context.headers || {};
+    const rawOrderId = data?.MERCHANT_ORDER_ID || data?.InvId || data?.order_id;
+    const orderId = typeof rawOrderId === 'string' ? rawOrderId.trim() : rawOrderId;
+
+    if (!orderId || typeof orderId !== 'string' || orderId.length > 80) {
+      this.securityLog('invalid_callback', { provider, reason: 'missing_order_id' });
+      throw new BadRequestException('Invalid callback');
+    }
+
+    if (provider === 'internal') {
+      if (!data?.__internalCheckout && process.env.NODE_ENV !== 'development') {
+        this.securityLog('invalid_callback', { provider, reason: 'internal_not_dev' });
+        throw new ForbiddenException('Invalid callback');
+      }
+      return { orderId };
+    }
+
+    const ipWhitelist = process.env.CHECKOUT_CALLBACK_IP_WHITELIST
+      ?.split(',')
+      .map((ip) => ip.trim())
+      .filter(Boolean);
+    if (ipWhitelist?.length && context.ip && !ipWhitelist.includes(context.ip)) {
+      this.securityLog('invalid_callback', {
+        provider,
+        reason: 'ip_not_whitelisted',
+        ip: context.ip,
+      });
+      throw new ForbiddenException('Invalid callback');
+    }
+
+    const webhookSecret =
+      provider === 'b2pay'
+        ? process.env.B2PAY_WEBHOOK_SECRET
+        : provider === 'pally'
+          ? process.env.PALLY_WEBHOOK_SECRET
+          : process.env.FK_WEBHOOK_SECRET || process.env.FK_API_KEY;
+
+    const headerSecret = this.getRequestSecret(headers, [
+      'x-webhook-secret',
+      'x-callback-secret',
+      'x-b2pay-secret',
+    ]);
+
+    if (webhookSecret && headerSecret && headerSecret !== webhookSecret) {
+      this.securityLog('invalid_callback', { provider, reason: 'bad_secret' });
+      throw new UnauthorizedException('Invalid callback');
+    }
+
+    const signature =
+      data?.signature ||
+      data?.sign ||
+      data?.SIGN ||
+      data?.hash ||
+      this.getRequestSecret(headers, [
+        'x-signature',
+        'x-pally-signature',
+        'x-b2pay-signature',
+      ]);
+
+    if (webhookSecret && signature) {
+      const expected = this.hmacPayload(data, webhookSecret);
+      if (!this.timingSafeEqualHex(String(signature), expected)) {
+        this.securityLog('invalid_callback', { provider, reason: 'bad_signature' });
+        throw new UnauthorizedException('Invalid callback');
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      // In production callbacks must prove they came from the provider, not from Postman.
+      this.securityLog('invalid_callback', {
+        provider,
+        reason: 'missing_signature_or_secret',
+      });
+      throw new UnauthorizedException('Invalid callback');
+    }
+
+    return { orderId };
   }
 
   private generateTemporaryPassword(length = 12): string {
@@ -300,8 +515,9 @@ export class CheckoutService {
     userId: string,
     type: string,
     information: Record<string, any>,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    return (this.prisma as any).balanceHistory.create({
+    return (client as any).balanceHistory.create({
       data: {
         userId,
         type,
@@ -319,38 +535,49 @@ export class CheckoutService {
       payload?: Record<string, any>;
     } = {},
   ) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
 
-    const payload = options.payload || {};
-    const isUsd = !!options.isUsd;
-    const usdRate = Number(options.usdRate) > 0 ? Number(options.usdRate) : 1;
+      const payload = options.payload || {};
+      const isUsd = !!options.isUsd;
+      const usdRate = Number(options.usdRate) > 0 ? Number(options.usdRate) : 1;
 
-    const balanceBefore = (user as any).balance || 0;
-    const balanceDiscountRub = Math.min(balanceBefore, transactionPriceRub);
-    const finalPriceRub = Math.max(transactionPriceRub - balanceDiscountRub, 0);
-    const finalPrice = isUsd
-      ? Number((finalPriceRub / usdRate).toFixed(2))
-      : finalPriceRub;
-    const balanceAfter = Math.max(balanceBefore - balanceDiscountRub, 0);
+      const balanceBefore = (user as any).balance || 0;
+      const balanceDiscountRub = this.roundMoney(
+        Math.min(balanceBefore, transactionPriceRub),
+      );
+      const finalPriceRub = this.roundMoney(
+        Math.max(transactionPriceRub - balanceDiscountRub, 0),
+      );
+      const finalPrice = isUsd
+        ? this.roundMoney(finalPriceRub / usdRate)
+        : finalPriceRub;
+      const balanceAfter = this.roundMoney(
+        Math.max(balanceBefore - balanceDiscountRub, 0),
+      );
 
-    if (balanceDiscountRub > 0) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { balance: balanceAfter } as any,
-      });
-    }
-    void payload;
+      if (balanceDiscountRub > 0) {
+        const updated = await tx.user.updateMany({
+          where: { id: userId, balance: { gte: balanceDiscountRub } },
+          data: { balance: { decrement: balanceDiscountRub } } as any,
+        });
+        if (updated.count !== 1) {
+          this.securityLog('double_spend_blocked', { userId, payload });
+          throw new BadRequestException('Invalid balance state');
+        }
+      }
 
-    return {
-      finalPrice,
-      balanceDiscount: balanceDiscountRub,
-      balanceDiscountRub,
-      finalPriceRub,
-      balanceBefore,
-      balanceAfter,
-      isUsedBalance: balanceDiscountRub > 0,
-    };
+      return {
+        finalPrice,
+        balanceDiscount: balanceDiscountRub,
+        balanceDiscountRub,
+        finalPriceRub,
+        balanceBefore,
+        balanceAfter,
+        isUsedBalance: balanceDiscountRub > 0,
+      };
+    });
   }
 
   private async getUserSuccessfulSpent(userId: string): Promise<number> {
@@ -389,6 +616,21 @@ export class CheckoutService {
     return tier?.percent || 0;
   }
 
+  private async getServerUsdRate(): Promise<number> {
+    const setting = await this.prisma.setting.findUnique({
+      where: { title: 'usd' },
+    });
+    const rawValue = setting?.settings;
+    const usdRate = Number(`${rawValue ?? 0.012}`.replace(',', '.'));
+
+    if (!Number.isFinite(usdRate) || usdRate <= 0) {
+      this.securityLog('invalid_usd', { usdRate, rawValue });
+      throw new BadRequestException('Invalid currency rate');
+    }
+
+    return usdRate;
+  }
+
 
   async initiatePayment(
     data: CheckoutDto,
@@ -399,6 +641,10 @@ export class CheckoutService {
     try {
       const normalizedEmail = this.normalizeEmail(data.email);
       data.email = normalizedEmail;
+      this.validateCount(Number(data.count));
+      this.validateCurrency(data.currency);
+      this.validatePaymentMethod(data.methodPay);
+      const serverUsdRate = await this.getServerUsdRate();
       const ref = data.ref;
       let refOwner = null;
       let user = await this.prisma.user.findFirst({
@@ -447,6 +693,8 @@ export class CheckoutService {
         throw new BadRequestException('Недостаточно ключей');
       let price = cheat.plan[data.type]?.price;
       const initialPrice = cheat.plan[data.type]?.price;
+      this.assertFiniteMoney(Number(price), 'planPrice');
+      this.assertFiniteMoney(Number(initialPrice), 'initialPrice');
       let discount = 0;
       if (ref) {
         const foundReferral = await this.prisma.referral.findFirst({
@@ -474,6 +722,11 @@ export class CheckoutService {
           }
         }
 
+        if (refOwner) {
+          this.validateDiscount(Number(refOwner.prcentToPrice || 0), 'referral');
+          this.validateDiscount(Number(refOwner.prcentToBalance || 0), 'referral');
+        }
+
         if (refOwner && refOwner.prcentToPrice > 0) {
           price -= (initialPrice / 100) * refOwner.prcentToPrice;
           discount += refOwner.prcentToPrice;
@@ -491,7 +744,11 @@ export class CheckoutService {
         promoCode.status === 'active' &&
         promoCode.count < promoCode.maxActivate
       );
+      if (promoCode) {
+        this.validateDiscount(Number(promoCode.percent || 0), 'promo');
+      }
       const promoPercent = promoIsValid ? promoCode.percent : 0;
+      this.validateDiscount(Number(loyaltyPercent || 0), 'loyalty');
 
       let activePromoCode: typeof promoCode | null = null;
       let activeLoyaltyPercent = 0;
@@ -509,19 +766,23 @@ export class CheckoutService {
       }
 
       if (isReseller && user && isReseller.email === user.email) {
+        this.validateDiscount(Number(isReseller.prcent || 0), 'reseller');
         price -= (initialPrice / 100) * isReseller.prcent;
         discount += isReseller.prcent;
       } else {
         isReseller = null;
       }
       if (cheat.plan[data.type].prcent > 0) {
+        this.validateDiscount(Number(cheat.plan[data.type].prcent || 0), 'plan');
         price -= (initialPrice / 100) * cheat.plan[data.type].prcent;
         discount += cheat.plan[data.type].prcent;
       }
-      const totalPriceRub = Math.round(price * data.count);
+      this.validateDiscount(discount, 'discount');
+      const totalPriceRub = this.roundMoney(price * data.count);
+      this.assertFiniteMoney(totalPriceRub, 'totalPriceRub');
       const baseFinalPrice =
         data.currency === 'USD'
-          ? Number((totalPriceRub / data.usd).toFixed(2))
+          ? this.roundMoney(totalPriceRub / serverUsdRate)
           : totalPriceRub; // рубли * кол-во
 
       let finalPrice = baseFinalPrice;
@@ -530,8 +791,8 @@ export class CheckoutService {
 
       if (data.isUsedBalance && user?.id) {
         const balanceUsage = await this.useFromBalance(user.id, totalPriceRub, {
-          isUsd: data.locale === 'en',
-          usdRate: data.usd,
+          isUsd: data.currency === 'USD',
+          usdRate: serverUsdRate,
           payload: {
             source: 'checkout',
             email: data.email,
@@ -549,6 +810,13 @@ export class CheckoutService {
         isUsedBalance = balanceUsage.isUsedBalance;
       }
 
+      this.validateFinalPrice({
+        basePriceRub: totalPriceRub,
+        finalPriceRub: this.roundMoney(totalPriceRub - balanceDiscount),
+        discountPercent: discount,
+        balanceDiscountRub: balanceDiscount,
+      });
+
       // 1. Создаём транзакцию с пометкой "pending"
       // @ts-nocheck
       const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -564,7 +832,7 @@ export class CheckoutService {
           reseller: isReseller ? isReseller.name : undefined,
           price:
             data.currency === 'USD'
-              ? (cheat.plan[data.type].price * data.count) / data.usd
+              ? this.roundMoney((cheat.plan[data.type].price * data.count) / serverUsdRate)
               : cheat.plan[data.type].price * data.count,
           checkoutedPrice: finalPrice,
           discount,
@@ -585,17 +853,28 @@ export class CheckoutService {
       });
 
       if (finalPrice <= 0) {
-
-        await this.handleCallback({ MERCHANT_ORDER_ID: orderId });
+        await this.handleCallback(
+          {
+            MERCHANT_ORDER_ID: orderId,
+            __internalCheckout: true,
+            reason: 'VALID_FREE_CHECKOUT',
+          },
+          { provider: 'internal' },
+        );
         return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
       }
       console.log(finalPrice)
 
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      if (process.env.FRONT_URL === 'http://localhost:3000' || process.env.FRONT_URL === 'https://dev.smgcheats.com') {
-        await this.handleCallback({
-          MERCHANT_ORDER_ID: orderId,
-        });
+      if (process.env.NODE_ENV === 'development' && process.env.CHECKOUT_AUTO_SUCCESS === 'true') {
+        await this.handleCallback(
+          {
+            MERCHANT_ORDER_ID: orderId,
+            __internalCheckout: true,
+            reason: 'DEVELOPMENT_AUTO_SUCCESS',
+          },
+          { provider: 'internal' },
+        );
         return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
       }
       let payUrl = '';
@@ -613,7 +892,7 @@ export class CheckoutService {
           payUrl = await this.createBill({
             amount:
               data.currency === 'USD'
-                ? Math.round(finalPrice * data.usd)
+                ? Math.round(finalPrice * serverUsdRate)
                 : Math.round(finalPrice),
             orderId,
           });
@@ -636,7 +915,7 @@ export class CheckoutService {
       // return response.data.Data.redirectURL;
       return payUrl;
     } catch (error) {
-      console.log(error);
+      this.logger.error(error?.message || error);
       if (
         error?.response &&
         error.response?.data &&
@@ -644,203 +923,288 @@ export class CheckoutService {
       ) {
         return { error: error.response.data?.error };
       }
-      throw new BadGatewayException(error);
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        throw error;
+      }
+      throw new BadGatewayException('Checkout failed');
     }
   }
 
 
-  async handleCallback(data: any) {
+  async handleCallback(
+    data: any,
+    context: {
+      provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
+      ip?: string;
+      headers?: Record<string, any>;
+    } = {},
+  ) {
     try {
-      const { MERCHANT_ORDER_ID, InvId, Status } = data;
-      let transaction;
-      if (InvId && Status === 'SUCCESS') {
-        transaction = await this.prisma.transaction.findFirst({
-          where: { orderId: InvId },
-        });
-      } else if (MERCHANT_ORDER_ID) {
-        transaction = await this.prisma.transaction.findFirst({
-          where: { orderId: MERCHANT_ORDER_ID },
-        });
-      }
-      if (!transaction) {
-        throw new NotFoundException('Transaction not found');
-      }
-      const txId = transaction.id;
-      if (!transaction || transaction.status === 'success') return;
-      //@ts-ignore
-      if (transaction.promoCode) {
-        await this.prisma.promocode.update({
-          where: { code: transaction.promoCode },
+      const { orderId } = this.validateCallback(data, context);
+
+      const processedTransaction = await this.prisma.$transaction(async (tx) => {
+        const lock = await tx.transaction.updateMany({
+          where: { orderId, status: 'pending' },
           data: {
-            count: {
-              increment: 1,
-            },
-          },
+            // The pending -> processing transition is the idempotency lock against double callbacks.
+            status: 'processing',
+            jsonPayload: data,
+          } as any,
         });
-      }
-      let referral = null;
-      if (transaction.referralId) {
-        referral = await this.prisma.referral.findUnique({
-          where: { id: transaction.referralId },
+
+        if (lock.count !== 1) {
+          const existing = await tx.transaction.findFirst({ where: { orderId } });
+          if (!existing) {
+            this.securityLog('invalid_callback', { orderId, reason: 'not_found' });
+            throw new NotFoundException('Transaction not found');
+          }
+
+          this.securityLog('duplicate_callback', {
+            orderId,
+            status: existing.status,
+          });
+          return null;
+        }
+
+        const transaction = await tx.transaction.findFirst({
+          where: { orderId },
         });
-        if (referral) {
-          await this.prisma.referral.update({
+        if (!transaction || transaction.status !== 'processing') {
+          this.securityLog('invalid_callback', {
+            orderId,
+            reason: 'not_processing_after_lock',
+          });
+          throw new BadRequestException('Invalid transaction state');
+        }
+
+        this.validatePaymentMethod((transaction as any).methodPay);
+        if (
+          context.provider &&
+          context.provider !== 'internal' &&
+          transaction.methodPay !== context.provider
+        ) {
+          this.securityLog('invalid_callback', {
+            orderId,
+            reason: 'provider_mismatch',
+            expected: transaction.methodPay,
+            got: context.provider,
+          });
+          throw new UnauthorizedException('Invalid callback');
+        }
+        this.validateCount(Number(transaction.count));
+        this.validateCurrency(String(transaction.currency));
+        this.validateFinalPrice({
+          basePriceRub: Number(transaction.realPrice || 0),
+          finalPriceRub: Math.max(
+            Number(transaction.realPrice || 0) -
+              Number((transaction as any).balanceDiscount || 0),
+            0,
+          ),
+          discountPercent: Number(transaction.discount || 0),
+          balanceDiscountRub: Number((transaction as any).balanceDiscount || 0),
+        });
+
+        if (transaction.promoCode) {
+          await tx.promocode.update({
+            where: { code: transaction.promoCode },
+            data: { count: { increment: 1 } },
+          });
+        }
+
+        let referral = null;
+        if (transaction.referralId) {
+          referral = await tx.referral.findUnique({
             where: { id: transaction.referralId },
-            data: {
-              transactions: {
-                connect: { id: transaction.id },
+          });
+
+          if (referral) {
+            this.validateDiscount(Number(referral.prcentToBalance || 0), 'referral');
+            this.validateDiscount(Number(referral.prcentToPrice || 0), 'referral');
+            await tx.referral.update({
+              where: { id: transaction.referralId },
+              data: { transactions: { connect: { id: transaction.id } } },
+            });
+          } else {
+            this.securityLog('invalid_referral', {
+              transactionId: transaction.id,
+              referralId: transaction.referralId,
+            });
+          }
+        }
+
+        const cheat = await tx.cheat.findFirst({
+          where: { id: transaction.cheatId, isDeleted: false },
+          include: { plan: { include: { day: true, month: true, week: true } } },
+        });
+
+        if (!cheat?.plan?.[transaction.type]) {
+          this.securityLog('invalid_callback', {
+            orderId,
+            reason: 'missing_plan',
+          });
+          throw new BadRequestException('Invalid transaction');
+        }
+
+        const plan = cheat.plan[transaction.type];
+        const keyses = [...(plan.keys || [])];
+        const count = Number(transaction.count);
+
+        if (keyses.length < count) {
+          await tx.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'error', jsonPayload: data } as any,
+          });
+          return null;
+        }
+
+        const checkoutKeyses = keyses.slice(0, count);
+        const remainingKeys = keyses.slice(count);
+
+        await tx.period.update({
+          where: { id: plan.id },
+          data: { keys: remainingKeys },
+        });
+
+        const updatedTransaction = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'success',
+            codes: checkoutKeyses,
+            jsonPayload: data,
+          } as any,
+        });
+
+        if (referral?.userAccountEmail) {
+          const referralUser = await tx.user.findFirst({
+            where: {
+              email: {
+                equals: referral.userAccountEmail,
+                mode: 'insensitive',
               },
             },
           });
-        } else {
-          console.warn('Referral not found, skipping connect');
-        }
-      }
-      const cheat = await this.prisma.cheat.findFirst({
-        where: { id: transaction.cheatId, isDeleted: false },
-        include: { plan: { include: { [transaction.type]: true } } },
-      });
 
-      const plan = cheat.plan[transaction.type];
-      //@ts-ignore
-      const keyses = plan.keys;
+          if (referralUser && referralUser.id !== transaction.userId) {
+            const referralBonusPercent = Number(referral.prcentToBalance || 0);
+            if (referralBonusPercent > 0) {
+              const checkoutedPriceRub = this.roundMoney(
+                Math.max(
+                  Number((transaction as any).realPrice || 0) -
+                    Number((transaction as any).balanceDiscount || 0),
+                  0,
+                ),
+              );
+              const referralBonus = this.roundMoney(
+                (checkoutedPriceRub * referralBonusPercent) / 100,
+              );
 
-      if (keyses.length < transaction.count) {
-        await this.prisma.transaction.update({
-          where: { id: txId },
-          //@ts-ignore
-          data: { status: 'error', jsonPayload: JSON.stringify(data) },
-        });
-        return;
-      }
+              if (referralBonus > 0) {
+                const balanceBefore = (referralUser as any).balance || 0;
+                const balanceAfter = this.roundMoney(balanceBefore + referralBonus);
 
-      const checkoutKeyses = keyses.slice(0, transaction.count);
-      await this.prisma.transaction.update({
-        where: { id: txId },
-        data: {
-          //@ts-ignore
-          status: 'success',
-          codes: checkoutKeyses,
-          jsonPayload: JSON.stringify(data)
-        },
-      });
+                await tx.user.update({
+                  where: { id: referralUser.id },
+                  data: { balance: { increment: referralBonus } } as any,
+                });
 
-      if (referral?.userAccountEmail) {
-        const referralUser = await this.prisma.user.findFirst({
-          where: {
-            email: {
-              equals: referral.userAccountEmail,
-              mode: 'insensitive',
-            },
-          },
-        });
-
-        if (referralUser && referralUser.id !== transaction.userId) {
-          const referralBonusPercent = Number(
-            (referral as any)?.prcentToBalance || 0,
-          );
-          if (referralBonusPercent > 0) {
-            const checkoutedPriceRub = Number(
-              Math.max(
-                Number((transaction as any).realPrice || 0) -
-                Number((transaction as any).balanceDiscount || 0),
-                0,
-              ).toFixed(2),
-            );
-            const referralBonus = Number(
-              ((checkoutedPriceRub * referralBonusPercent) / 100).toFixed(2),
-            );
-
-            if (referralBonus > 0) {
-              const balanceBefore = (referralUser as any).balance || 0;
-              const balanceAfter = balanceBefore + referralBonus;
-
-              await this.prisma.user.update({
-                where: { id: referralUser.id },
-                data: {
-                  balance: balanceAfter,
-                } as any,
-              });
-
-              await this.createBalanceHistory(referralUser.id, 'ADD_BALANCE', {
-                action: 'REFERRAL_BONUS_CALLBACK',
-                balanceBefore,
-                balanceAfter,
-                bonusPercent: referralBonusPercent,
-                bonusAmount: referralBonus,
-                bonusBaseRub: checkoutedPriceRub,
-                referralId: referral.id,
-                referralCode: referral.code,
-                referralOwner: referral.owner,
-                referralUserEmail: referral.userAccountEmail,
-                buyerEmail: transaction.email,
-                buyerUserId: transaction.userId || null,
-                transactionId: transaction.id,
-                orderId: transaction.orderId,
-                checkoutedPrice: transaction.checkoutedPrice,
-                currency: transaction.currency,
-                callbackPayload: data,
-                createdAt: new Date().toISOString(),
-              });
+                await this.createBalanceHistory(
+                  referralUser.id,
+                  'ADD_BALANCE',
+                  {
+                    action: 'REFERRAL_BONUS_CALLBACK',
+                    balanceBefore,
+                    balanceAfter,
+                    bonusPercent: referralBonusPercent,
+                    bonusAmount: referralBonus,
+                    bonusBaseRub: checkoutedPriceRub,
+                    referralId: referral.id,
+                    referralCode: referral.code,
+                    referralOwner: referral.owner,
+                    referralUserEmail: referral.userAccountEmail,
+                    buyerEmail: transaction.email,
+                    buyerUserId: transaction.userId || null,
+                    transactionId: transaction.id,
+                    orderId: transaction.orderId,
+                    checkoutedPrice: transaction.checkoutedPrice,
+                    currency: transaction.currency,
+                    callbackPayload: data,
+                    createdAt: new Date().toISOString(),
+                  },
+                  tx,
+                );
+              }
             }
           }
         }
-      }
 
-      if (transaction.userId && (transaction as any).isUsedBalance) {
-        const checkoutUser = await this.prisma.user.findUnique({
-          where: { id: transaction.userId },
-        });
-
-        if (checkoutUser) {
-          const balanceAfter = (checkoutUser as any).balance || 0;
-          const balanceDiscount = (transaction as any).balanceDiscount || 0;
-          const balanceBefore = balanceAfter + balanceDiscount;
-
-          await this.createBalanceHistory(transaction.userId, 'CHECKOUT', {
-            action: 'CHECKOUT',
-            transactionId: transaction.id,
-            orderId: transaction.orderId,
-            email: transaction.email,
-            cheatId: transaction.cheatId,
-            type: transaction.type,
-            count: transaction.count,
-            currency: transaction.currency,
-            methodPay: transaction.methodPay,
-            price: transaction.price,
-            checkoutedPrice: transaction.checkoutedPrice,
-            realPrice: transaction.realPrice,
-            codes: checkoutKeyses,
-            ip: transaction.ip,
-            promoCode: transaction.promoCode,
-            referralId: transaction.referralId,
-            reseller: transaction.reseller,
-            isUsedBalance: (transaction as any).isUsedBalance || false,
-            balanceDiscount,
-            balanceBefore,
-            balanceAfter,
-            callbackPayload: data,
-            createdAt: new Date().toISOString(),
+        if (transaction.userId && (transaction as any).isUsedBalance) {
+          const checkoutUser = await tx.user.findUnique({
+            where: { id: transaction.userId },
           });
+
+          if (checkoutUser) {
+            const balanceAfter = (checkoutUser as any).balance || 0;
+            const balanceDiscount = (transaction as any).balanceDiscount || 0;
+            const balanceBefore = this.roundMoney(balanceAfter + balanceDiscount);
+
+            await this.createBalanceHistory(
+              transaction.userId,
+              'CHECKOUT',
+              {
+                action: 'CHECKOUT',
+                transactionId: transaction.id,
+                orderId: transaction.orderId,
+                email: transaction.email,
+                cheatId: transaction.cheatId,
+                type: transaction.type,
+                count: transaction.count,
+                currency: transaction.currency,
+                methodPay: transaction.methodPay,
+                price: transaction.price,
+                checkoutedPrice: transaction.checkoutedPrice,
+                realPrice: transaction.realPrice,
+                codes: checkoutKeyses,
+                ip: transaction.ip,
+                promoCode: transaction.promoCode,
+                referralId: transaction.referralId,
+                reseller: transaction.reseller,
+                isUsedBalance: (transaction as any).isUsedBalance || false,
+                balanceDiscount,
+                balanceBefore,
+                balanceAfter,
+                callbackPayload: data,
+                createdAt: new Date().toISOString(),
+              },
+              tx,
+            );
+          }
         }
+
+        return { ...updatedTransaction, codes: checkoutKeyses };
+      });
+
+      if (processedTransaction) {
+        await this.sendMail(processedTransaction as Transaction);
       }
 
-      await this.prisma.period.update({
-        //@ts-ignore
-        where: { id: plan.id },
-        data: {
-          keys: keyses.slice(transaction.count),
-        },
-      });
-
-      await this.sendMail({
-        ...transaction,
-        codes: checkoutKeyses,
-      });
       return 'YES';
     } catch (error) {
-      console.log(error)
-      throw new BadGatewayException(error);
+      this.securityLog('invalid_callback', {
+        reason: error?.message || 'callback_failed',
+      });
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+      throw new BadGatewayException('Payment callback failed');
     }
   }
 
@@ -851,11 +1215,11 @@ export class CheckoutService {
     });
     if (!transaction)
       throw new UnprocessableEntityException('The product already opened');
-
     await this.prisma.transaction.update({
       where: { id: transaction.id },
       data: { isVisited: true },
     });
+    // if (!transaction.isVisited) return transaction;
     return transaction;
   }
 
