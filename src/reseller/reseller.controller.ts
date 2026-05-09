@@ -55,6 +55,8 @@ export class ResellerController {
   }
 
   @Get('raw')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async findAllRaw() {
     try {
       return this.resellerService.findAllRaw();

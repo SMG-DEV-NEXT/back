@@ -16,6 +16,9 @@ import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { generateTransaction } from 'src/utils/generateTransaction';
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
+import { RolesGuard } from 'src/auth/roles/roles.guard';
 const WHITELIST = new Set([
   '168.119.157.136',
   '168.119.60.227',
@@ -191,6 +194,8 @@ export class CheckoutController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getFilteredTransactions(
     @Query('cheatId') cheatId?: string,
     @Query('startDate') startDate?: string,

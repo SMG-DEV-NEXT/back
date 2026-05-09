@@ -89,6 +89,8 @@ export class CatalogController {
   }
 
   @Get('/admin/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getCatalogAdmin(@Param('id') id: string) {
     try {
       return this.catalogService.getCatalogAdmin(id);
