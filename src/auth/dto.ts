@@ -6,6 +6,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'name_required' })
@@ -42,12 +43,18 @@ export class LoginDto {
   @MinLength(5, { message: 'password_min_5' })
   password: string;
 
+  @IsOptional()
+  @IsString()
   code?: string;
 
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
   rememberMe: boolean;
 
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
   fromAdmin: boolean;
 }
 
