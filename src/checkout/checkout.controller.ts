@@ -19,6 +19,7 @@ import { generateTransaction } from 'src/utils/generateTransaction';
 import { Role } from 'constants/roles';
 import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
+import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
 
 function getClientIp(req: Request): string {
   const ipHeader =
@@ -55,6 +56,7 @@ export class CheckoutController {
   }
 
   @Post()
+  @UseGuards(OptionalJwtAuthGuard)
   async checkout(@Body() data: CheckoutDto, @Req() req: any) {
     const user = await req.user;
     const ip =

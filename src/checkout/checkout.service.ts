@@ -251,6 +251,23 @@ export class CheckoutService {
     return { orderId };
   }
 
+  private validateBalanceOwner(authUser: User | null | undefined, checkoutUser: User) {
+    // Balance is account-owned money. Matching by typed email is not authentication.
+    if (
+      !authUser ||
+      authUser.id !== checkoutUser.id ||
+      authUser.email.toLowerCase() !== checkoutUser.email.toLowerCase()
+    ) {
+      this.securityLog('balance_owner_mismatch', {
+        authUserId: authUser?.id || null,
+        authUserEmail: authUser?.email || null,
+        checkoutUserId: checkoutUser.id,
+        checkoutEmail: checkoutUser.email,
+      });
+      throw new UnauthorizedException('Login is required to use balance');
+    }
+  }
+
   private generateTemporaryPassword(length = 12): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
     let password = '';
@@ -790,6 +807,7 @@ export class CheckoutService {
       let isUsedBalance = false;
 
       if (data.isUsedBalance && user?.id) {
+        this.validateBalanceOwner(authUser, user);
         const balanceUsage = await this.useFromBalance(user.id, totalPriceRub, {
           isUsd: data.currency === 'USD',
           usdRate: serverUsdRate,
