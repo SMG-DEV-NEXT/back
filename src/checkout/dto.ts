@@ -46,6 +46,11 @@ export class CheckoutDto {
   email: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  })
   @IsString()
   @MaxLength(64)
   @Matches(/^[A-Za-z0-9_-]+$/)
@@ -71,6 +76,11 @@ export class CheckoutDto {
 
   @IsString()
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  })
   @MaxLength(64)
   @Matches(/^[A-Za-z0-9_-]+$/)
   ref: string;
