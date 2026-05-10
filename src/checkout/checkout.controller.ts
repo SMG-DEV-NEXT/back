@@ -185,6 +185,20 @@ export class CheckoutController {
     res.send(fileContent);
   }
 
+  @Post('admin/:id/manual-callback')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async manuallyCompletePendingTransaction(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() body: { reason?: string } = {},
+  ) {
+    const user = await req.user;
+    return this.checkoutService.manuallyCompletePendingTransaction(id, user, {
+      reason: body?.reason || 'admin_table_button',
+    });
+  }
+
   @Get('/:id')
   async getTransactionPreview(@Param() param) {
     try {
