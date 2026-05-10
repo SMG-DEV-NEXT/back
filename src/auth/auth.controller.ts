@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Body,
@@ -43,7 +44,14 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
-      const { name, email, password, lang, token } = registerDto;
+      const { name, email, password, lang, token, confirmPassword, repeatEmail } =
+        registerDto;
+      if (confirmPassword && confirmPassword !== password) {
+        throw new BadRequestException('passwords_not_match');
+      }
+      if (repeatEmail && repeatEmail.toLowerCase() !== email.toLowerCase()) {
+        throw new BadRequestException('emails_not_match');
+      }
       const sanitizedEmail = this.sanitizeService.sanitizeHtml(email);
       const sanitizedName = this.sanitizeService.sanitizeHtml(name);
       const findUser = await this.authService.getUserByEmail(email);
