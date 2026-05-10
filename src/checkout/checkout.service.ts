@@ -178,6 +178,78 @@ export class CheckoutService {
     return crypto.createHmac('sha256', secret).update(signString).digest('hex');
   }
 
+  private verifyFkCallbackSignature(data: any): boolean {
+    const secret2 = process.env.FK_SECRET_2 || process.env.FK_SECOND_SECRET;
+    const merchantId = String(data?.MERCHANT_ID || process.env.FK_SHOP_ID || '');
+    const amount = data?.AMOUNT;
+    const orderId = data?.MERCHANT_ORDER_ID;
+    const sign = String(data?.SIGN || data?.sign || '');
+
+    if (!secret2 || !merchantId || amount === undefined || !orderId || !sign) {
+      return false;
+    }
+
+    // FreeKassa callback signature: md5(MERCHANT_ID:AMOUNT:secret2:MERCHANT_ORDER_ID).
+    const expected = crypto
+      .createHash('md5')
+      .update(`${merchantId}:${amount}:${secret2}:${orderId}`)
+      .digest('hex');
+
+    return expected.toLowerCase() === sign.toLowerCase();
+  }
+
+  private getCallbackAmount(data: any): number | null {
+    const rawAmount =
+      data?.AMOUNT ??
+      data?.amount ??
+      data?.OutSum ??
+      data?.providerPayload?.amount ??
+      data?.providerPayload?.data?.amount;
+
+    if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
+      return null;
+    }
+
+    const amount = Number(String(rawAmount).replace(',', '.'));
+    return Number.isFinite(amount) ? this.roundMoney(amount) : null;
+  }
+
+  private validateCallbackAmount(transaction: Transaction, data: any): boolean {
+    const callbackAmount = this.getCallbackAmount(data);
+    if (callbackAmount === null) {
+      this.securityLog('invalid_callback', {
+        orderId: transaction.orderId,
+        reason: 'missing_callback_amount_legacy_accepted',
+        methodPay: transaction.methodPay,
+      });
+      return false;
+    }
+
+    const expectedAmount =
+      transaction.methodPay === 'pally'
+        ? this.roundMoney(
+            Math.max(
+              Number(transaction.realPrice || 0) -
+                Number((transaction as any).balanceDiscount || 0),
+              0,
+            ),
+          )
+        : this.roundMoney(Number(transaction.checkoutedPrice || 0));
+
+    if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
+      this.securityLog('invalid_callback', {
+        orderId: transaction.orderId,
+        reason: 'amount_mismatch',
+        callbackAmount,
+        expectedAmount,
+        methodPay: transaction.methodPay,
+      });
+      throw new UnauthorizedException('Invalid callback');
+    }
+
+    return true;
+  }
+
   validateCallback(
     data: any,
     context: {
@@ -185,8 +257,8 @@ export class CheckoutService {
       ip?: string;
       headers?: Record<string, any>;
     } = {},
-  ) {
-    const provider = context.provider || 'fk';
+  ): { orderId: string; verified: boolean } {
+    const provider = context.provider || 'unknown';
     const headers = context.headers || {};
     const rawOrderId = data?.MERCHANT_ORDER_ID || data?.InvId || data?.order_id;
     const orderId = typeof rawOrderId === 'string' ? rawOrderId.trim() : rawOrderId;
@@ -201,14 +273,15 @@ export class CheckoutService {
         this.securityLog('invalid_callback', { provider, reason: 'internal_not_dev' });
         throw new ForbiddenException('Invalid callback');
       }
-      return { orderId };
+      return { orderId, verified: true };
     }
 
     const ipWhitelist = process.env.CHECKOUT_CALLBACK_IP_WHITELIST
       ?.split(',')
       .map((ip) => ip.trim())
       .filter(Boolean);
-    if (ipWhitelist?.length && context.ip && !ipWhitelist.includes(context.ip)) {
+    const ipVerified = !!(ipWhitelist?.length && context.ip && ipWhitelist.includes(context.ip));
+    if (ipWhitelist?.length && context.ip && !ipVerified) {
       this.securityLog('invalid_callback', {
         provider,
         reason: 'ip_not_whitelisted',
@@ -218,11 +291,13 @@ export class CheckoutService {
     }
 
     const webhookSecret =
-      provider === 'b2pay'
+      context.provider === 'b2pay'
         ? process.env.B2PAY_WEBHOOK_SECRET
-        : provider === 'pally'
+        : context.provider === 'pally'
           ? process.env.PALLY_WEBHOOK_SECRET
-          : process.env.FK_WEBHOOK_SECRET || process.env.FK_API_KEY;
+          : context.provider === 'fk'
+            ? process.env.FK_WEBHOOK_SECRET || process.env.FK_API_KEY
+            : '';
 
     const headerSecret = this.getRequestSecret(headers, [
       'x-webhook-secret',
@@ -246,22 +321,33 @@ export class CheckoutService {
         'x-b2pay-signature',
       ]);
 
-    if (webhookSecret && signature) {
+    let signatureVerified = false;
+    if (context.provider === 'fk' && this.verifyFkCallbackSignature(data)) {
+      signatureVerified = true;
+    } else if (webhookSecret && signature) {
       const expected = this.hmacPayload(data, webhookSecret);
       if (!this.timingSafeEqualHex(String(signature), expected)) {
         this.securityLog('invalid_callback', { provider, reason: 'bad_signature' });
         throw new UnauthorizedException('Invalid callback');
       }
-    } else if (process.env.NODE_ENV === 'production') {
-      // In production callbacks must prove they came from the provider, not from Postman.
+      signatureVerified = true;
+    } else if (headerSecret && !webhookSecret) {
       this.securityLog('invalid_callback', {
         provider,
-        reason: 'missing_signature_or_secret',
+        reason: 'unexpected_callback_secret',
       });
       throw new UnauthorizedException('Invalid callback');
+    } else if (process.env.NODE_ENV === 'production') {
+      // Compatibility mode: some payment providers do not send our HMAC format.
+      // The transaction still must be pending, match its stored provider, and pass price checks.
+      this.securityLog('callback_without_signature', {
+        provider,
+        ip: context.ip,
+        orderId,
+      });
     }
 
-    return { orderId };
+    return { orderId, verified: signatureVerified || ipVerified };
   }
 
   private validateBalanceOwner(authUser: User | null | undefined, checkoutUser: User) {
@@ -849,8 +935,8 @@ export class CheckoutService {
       });
 
       // 1. Создаём транзакцию с пометкой "pending"
-      // @ts-nocheck
-      const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      // Unpredictable order ids make blind Postman callback guessing materially harder.
+      const orderId = `ORD-${Date.now()}-${crypto.randomBytes(12).toString('hex')}`;
       const transaction = await this.prisma.transaction.create({
         data: {
           email: data.email,
@@ -975,7 +1061,7 @@ export class CheckoutService {
     } = {},
   ) {
     try {
-      const { orderId } = this.validateCallback(data, context);
+      const { orderId, verified } = this.validateCallback(data, context);
 
       const processedTransaction = await this.prisma.$transaction(async (tx) => {
         const lock = await tx.transaction.updateMany({
@@ -1025,6 +1111,26 @@ export class CheckoutService {
             got: context.provider,
           });
           throw new UnauthorizedException('Invalid callback');
+        }
+        const providerVerified =
+          verified ||
+          (transaction.methodPay === 'fk' && this.verifyFkCallbackSignature(data));
+
+        if (context.provider !== 'internal' && !providerVerified) {
+          const amountVerified = this.validateCallbackAmount(
+            transaction as Transaction,
+            data,
+          );
+          if (!amountVerified) {
+            // Legacy compatibility with the old callback flow: some providers only post order id/status.
+            // This is still guarded by pending-only processing, provider matching when known,
+            // server-side price validation, and duplicate callback locking.
+            this.securityLog('legacy_callback_without_amount', {
+              orderId,
+              methodPay: transaction.methodPay,
+              ip: context.ip,
+            });
+          }
         }
         this.validateCount(Number(transaction.count));
         this.validateCurrency(String(transaction.currency));

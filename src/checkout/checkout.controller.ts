@@ -101,7 +101,6 @@ export class CheckoutController {
   ) {
     const ip = getClientIp(req);
     const result = await this.checkoutService.handleCallback(body, {
-      provider: 'fk',
       ip,
       headers: req.headers as Record<string, any>,
     });
