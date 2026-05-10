@@ -228,12 +228,12 @@ export class CheckoutService {
     const expectedAmount =
       transaction.methodPay === 'pally'
         ? this.roundMoney(
-            Math.max(
-              Number(transaction.realPrice || 0) -
-                Number((transaction as any).balanceDiscount || 0),
-              0,
-            ),
-          )
+          Math.max(
+            Number(transaction.realPrice || 0) -
+            Number((transaction as any).balanceDiscount || 0),
+            0,
+          ),
+        )
         : this.roundMoney(Number(transaction.checkoutedPrice || 0));
 
     if (Math.abs(callbackAmount - expectedAmount) > 0.01) {
@@ -868,7 +868,6 @@ export class CheckoutService {
 
       let activePromoCode: typeof promoCode | null = null;
       let activeLoyaltyPercent = 0;
-
       if (promoPercent >= loyaltyPercent && promoPercent > 0) {
         // Promo code wins
         activePromoCode = promoCode;
@@ -880,6 +879,7 @@ export class CheckoutService {
         price -= (initialPrice / 100) * loyaltyPercent;
         discount += loyaltyPercent;
       }
+      console.log(discount, 1, promoPercent, loyaltyPercent)
 
       if (isReseller && user && isReseller.email === user.email) {
         this.validateDiscount(Number(isReseller.prcent || 0), 'reseller');
@@ -1138,7 +1138,7 @@ export class CheckoutService {
           basePriceRub: Number(transaction.realPrice || 0),
           finalPriceRub: Math.max(
             Number(transaction.realPrice || 0) -
-              Number((transaction as any).balanceDiscount || 0),
+            Number((transaction as any).balanceDiscount || 0),
             0,
           ),
           discountPercent: Number(transaction.discount || 0),
@@ -1231,7 +1231,7 @@ export class CheckoutService {
               const checkoutedPriceRub = this.roundMoney(
                 Math.max(
                   Number((transaction as any).realPrice || 0) -
-                    Number((transaction as any).balanceDiscount || 0),
+                  Number((transaction as any).balanceDiscount || 0),
                   0,
                 ),
               );
