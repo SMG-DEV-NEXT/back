@@ -60,6 +60,10 @@ export class CreateStatDto {
   Image2?: string;
 
   @IsOptional()
+  @IsString()
+  Image3?: string;
+
+  @IsOptional()
   @IsIn(['published', 'unpublish'])
   type?: string;
 
@@ -114,6 +118,10 @@ export class UpdateStatsDto {
 
   @IsOptional()
   @IsString()
+  Image3?: string;
+
+  @IsOptional()
+  @IsString()
   Image2?: string;
 
   @IsOptional()
@@ -148,6 +156,10 @@ export class GetAllStatsDto {
   @IsOptional()
   @IsNumberString()
   limit?: string;
+
+  @IsOptional()
+  @IsString()
+  sorting?: string
 }
 
 export class GetAllStatsOfCatalog {

@@ -20,12 +20,15 @@ export class CreateCheatDto {
   @IsString() aboutEn: string;
   @IsString() image1: string;
   @IsString() image2: string;
+  @IsString() catalogId: string;
   @IsEnum(['undetected', 'detected', 'update', 'risk', 'freeze']) type: string;
   @IsString() link: string;
   @IsString() metaTitleRu: string;
   @IsString() metaTitleEn: string;
   @IsString() metaRu: string;
   @IsString() metaEn: string;
+  @IsString() @IsOptional() h1Ru?: string;
+  @IsString() @IsOptional() h1En?: string;
   @IsArray() thumbnailVideo: string[];
   @IsArray() tags: { ru: string; en: string }[];
   @IsArray() images: string[];
@@ -36,95 +39,40 @@ export class CreateCheatDto {
   @IsString() instructionEn: string;
   @IsObject() requirments: Record<string, any>;
   @IsNumber() minimumPrice: number;
-  @IsEnum(['onUpdate', 'closed', 'work'])
-  visibility: CheatVisibility;
-  @IsBoolean()
-  showOtherCheats: boolean;
+  @IsEnum(['onUpdate', 'closed', 'work']) visibility: CheatVisibility;
+  @IsBoolean() showOtherCheats: boolean;
 }
 
 export class UpdateCheatDto {
-  @IsString()
-  @IsOptional()
-  titleRu?: string;
-
-  @IsString()
-  @IsOptional()
-  titleEN?: string;
-
-  @IsString()
-  @IsOptional()
-  aboutRu?: string;
-
-  @IsString()
-  @IsOptional()
-  aboutEn?: string;
-
-  @IsString()
-  @IsOptional()
-  image1?: string;
-
-  @IsString()
-  @IsOptional()
-  image2?: string;
-
-  @IsString()
-  @IsOptional()
-  status?: string;
-
-  @IsString()
-  @IsOptional()
-  link?: string;
-
-  @IsString()
-  @IsOptional()
-  seoTitleEn?: string;
-
-  @IsString()
-  @IsOptional()
-  seoTitleRu?: string;
-
-  @IsString()
-  @IsOptional()
-  seoTextRu?: string;
-
-  @IsString()
-  @IsOptional()
-  seoTextEn?: string;
-
-  @IsArray()
-  @IsOptional()
-  tegs?: string[];
-
-  @IsArray()
-  @IsOptional()
-  imagesLink?: string[];
-
-  @IsArray()
-  @IsOptional()
-  videosLink?: string[];
-
-  @IsArray()
-  @IsOptional()
-  thumbnailVideo?: string[];
-
-  @IsArray()
-  @IsOptional()
-  functions?: string[];
-
-  @IsObject()
-  @IsOptional()
-  requirments?: Record<string, any>;
-
-  @IsString()
-  @IsOptional()
-  instructionsEn?: string;
-
-  @IsNumber()
-  @IsOptional()
-  minimumPrice?: number;
-
-  @IsEnum(['onUpdate', 'closed', 'work'])
-  visibility: CheatVisibility;
+  @IsString() @IsOptional() titleRu?: string;
+  @IsString() @IsOptional() titleEn?: string;
+  @IsString() @IsOptional() aboutRu?: string;
+  @IsString() @IsOptional() aboutEn?: string;
+  @IsString() @IsOptional() image1?: string;
+  @IsString() @IsOptional() image2?: string;
+  @IsString() @IsOptional() imageUrl?: string;
+  @IsString() @IsOptional() status?: string;
+  @IsString() @IsOptional() type?: string;
+  @IsString() @IsOptional() link?: string;
+  @IsString() @IsOptional() metaTitleRu?: string;
+  @IsString() @IsOptional() metaTitleEn?: string;
+  @IsString() @IsOptional() metaRu?: string;
+  @IsString() @IsOptional() metaEn?: string;
+  @IsString() @IsOptional() h1Ru?: string;
+  @IsString() @IsOptional() h1En?: string;
+  @IsString() @IsOptional() instructionRu?: string;
+  @IsString() @IsOptional() instructionEn?: string;
+  @IsString() @IsOptional() catalogId?: string;
+  @IsArray() @IsOptional() tags?: { ru: string; en: string }[];
+  @IsArray() @IsOptional() images?: string[];
+  @IsArray() @IsOptional() videos?: string[];
+  @IsArray() @IsOptional() thumbnailVideo?: string[];
+  @IsArray() @IsOptional() functions?: any[];
+  @IsObject() @IsOptional() requirments?: Record<string, any>;
+  @IsNumber() @IsOptional() minimumPrice?: number;
+  @IsNumber() @IsOptional() position?: number;
+  @IsBoolean() @IsOptional() showOtherCheats?: boolean;
+  @IsEnum(['onUpdate', 'closed', 'work']) @IsOptional() visibility?: CheatVisibility;
 }
 
 export class ParamsIdDto {

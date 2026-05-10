@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsEnum, IsUrl } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsEnum, IsUrl, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDto {
@@ -9,11 +9,11 @@ export class CreateDto {
   headRu: string;
 
   @IsString()
-  @IsOptional()
-  link: string;
+  headEn: string;
 
   @IsString()
-  headEn: string;
+  @IsOptional()
+  link?: string;
 
   @IsString()
   @IsOptional()
@@ -29,6 +29,14 @@ export class CreateDto {
   @IsString()
   metaEn: string;
 
+  @IsString()
+  @IsOptional()
+  seoRu?: string;
+
+  @IsString()
+  @IsOptional()
+  seoEn?: string;
+
   @IsOptional()
   @IsEnum(['published', 'unpublish'])
   type?: string;
@@ -37,11 +45,11 @@ export class CreateDto {
   @Type(() => Number)
   position: number;
 
-  @IsOptional()
+  @ValidateIf((o) => !!o.imageUrl)
   @IsUrl({
     require_protocol: true,
     protocols: ['http', 'https'],
-    host_whitelist: ['localhost', /^[\w.-]+$/],
   })
+  @IsOptional()
   imageUrl?: string;
 }
