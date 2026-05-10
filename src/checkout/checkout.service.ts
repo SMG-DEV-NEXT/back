@@ -1345,6 +1345,60 @@ export class CheckoutService {
     }
   }
 
+  async manuallyCompletePendingTransaction(
+    transactionId: string,
+    adminUser: User,
+    metadata: Record<string, any> = {},
+  ) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.status === 'success') {
+      return { ok: true, alreadyCompleted: true };
+    }
+
+    if (transaction.status !== 'pending') {
+      this.securityLog('admin_manual_callback_rejected', {
+        transactionId,
+        orderId: transaction.orderId,
+        status: transaction.status,
+        authUserId: adminUser?.id,
+        authUserEmail: adminUser?.email,
+        metadata,
+      });
+      throw new BadRequestException('Only pending transactions can be completed');
+    }
+
+    // Admin repair path for confirmed payments whose provider callback was lost.
+    // It still uses the same pending-only callback processor, so keys/bonuses cannot be issued twice.
+    await this.handleCallback(
+      {
+        MERCHANT_ORDER_ID: transaction.orderId,
+        __internalCheckout: true,
+        reason: 'ADMIN_MANUAL_CALLBACK',
+        adminUserId: adminUser?.id,
+        adminEmail: adminUser?.email,
+        metadata,
+      },
+      { provider: 'internal' },
+    );
+
+    this.securityLog('admin_manual_callback_completed', {
+      transactionId,
+      orderId: transaction.orderId,
+      authUserId: adminUser?.id,
+      authUserEmail: adminUser?.email,
+      metadata,
+    });
+
+    return { ok: true };
+  }
+
   async getTransactionPreview(transactionId: string) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { orderId: transactionId },
