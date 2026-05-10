@@ -18,6 +18,14 @@ export class RegisterDto {
   @MinLength(8, { message: 'password_min_8' })
   password: string;
 
+  @MinLength(8, { message: 'password_min_8' })
+  @IsOptional()
+  confirmPassword?: string;
+
+  @IsEmail({}, { message: 'email_invalid' })
+  @IsOptional()
+  repeatEmail?: string;
+
   @IsString()
   lang: string;
 
