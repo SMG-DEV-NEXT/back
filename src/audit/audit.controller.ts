@@ -5,12 +5,19 @@ import {
   Query,
   Headers,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/roles/roles.decorator';
+import { RolesGuard } from 'src/auth/roles/roles.guard';
+import { Role } from 'constants/roles';
 import { AuditLogsService } from './audit-logs.service';
 
 @Controller('audit')
+@Roles(Role.ADMIN)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AuditController {
-  constructor(private readonly auditLogsService: AuditLogsService) { }
+  constructor(private readonly auditLogsService: AuditLogsService) {}
 
   private checkPassword(password: string): void {
     const expected = process.env.AUDIT_LOGS_PASSWORD;
