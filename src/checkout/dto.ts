@@ -51,9 +51,9 @@ export class CheckoutDto {
     const trimmed = value.trim();
     return trimmed === '' ? undefined : trimmed;
   })
+
   @IsString()
   @MaxLength(64)
-  @Matches(/^[A-Za-z0-9_-]+$/)
   promo?: string;
 
   @IsString()
