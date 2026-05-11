@@ -23,6 +23,7 @@ import axios from 'axios';
 import * as FormData from 'form-data';
 import * as bcrypt from 'bcryptjs';
 import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
 
 @Injectable()
 export class CheckoutService {
@@ -49,17 +50,18 @@ export class CheckoutService {
 
   private securityLog(event: string, details: Record<string, any> = {}) {
     this.logger.warn({ event, ...details });
-    void this.audit.record({
-      type: 'security',
-      event,
-      severity: 'warn',
-      userId: details.authUserId || details.userId || null,
-      userEmail: details.authUserEmail || details.email || details.checkoutEmail || null,
-      ip: details.ip || null,
-      method: details.method || null,
-      path: details.path || null,
-      metadata: details,
-    });
+    void this.audit.logSecurity(
+      AuditAction.SUSPICIOUS_ACTIVITY,
+      {
+        ip: details.ip || null,
+        method: details.method || null,
+        endpoint: details.path || null,
+      },
+      {
+        userId: details.authUserId || details.userId || null,
+        metadata: { event, ...details },
+      },
+    );
   }
 
   private roundMoney(value: number): number {
@@ -800,7 +802,6 @@ export class CheckoutService {
           } as any,
         })
         : null;
-      console.log(promoCode)
       if (!cheat || !cheat.plan[data.type])
         throw new NotFoundException('Product not found');
 
@@ -850,7 +851,7 @@ export class CheckoutService {
       }
       // Loyalty discount — based on user's total spend history
       let loyaltyPercent = 0;
-      if (user?.id) {
+      if (user?.id && authUser) {
         loyaltyPercent = await this.getLoyaltyDiscount(user.id);
       }
 
@@ -879,7 +880,6 @@ export class CheckoutService {
         price -= (initialPrice / 100) * loyaltyPercent;
         discount += loyaltyPercent;
       }
-      console.log(discount, 1, promoPercent, loyaltyPercent)
 
       if (isReseller && user && isReseller.email === user.email) {
         this.validateDiscount(Number(isReseller.prcent || 0), 'reseller');

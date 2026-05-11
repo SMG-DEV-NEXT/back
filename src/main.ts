@@ -98,7 +98,7 @@ async function bootstrap() {
     origin: [process.env.FRONT_URL, process.env.ADMIN_URL], // Replace with frontend URL
     credentials: true, // Allow cookies
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,x-audit-password',
   });
   await app.listen(process.env.PORT || 4000, '0.0.0.0');
 }

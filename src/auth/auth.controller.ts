@@ -25,8 +25,8 @@ import {
   UpdateDto,
 } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-// DTO for registration
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
 
 @Controller('auth')
 export class AuthController {
@@ -35,13 +35,28 @@ export class AuthController {
     private readonly sanitizeService: SanitizeService,
     private prisma: PrismaService,
     private readonly twoFactorAuthService: TwoFactorAuthService,
-  ) { }
+    private readonly audit: AuditService,
+  ) {}
+
+  private getAuditCtx(req: Request) {
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      null;
+    return {
+      ip,
+      userAgent: (req.headers['user-agent'] as string) || null,
+      method: req.method,
+      endpoint: req.originalUrl || req.url,
+    };
+  }
 
   // Register user
   @Post('register')
   async register(
     @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
   ) {
     try {
       const { name, email, password, lang, token, confirmPassword, repeatEmail } =
@@ -70,6 +85,10 @@ export class AuthController {
       );
       const { password: p, ...userWithoutPassword } = user;
       this.authService.setAuthCookies(res, access_token, refresh_token, true);
+      void this.audit.logAuth(AuditAction.REGISTER, this.getAuditCtx(req), {
+        userId: user.id,
+        status: 200,
+      });
       return res.status(200).json({ user: userWithoutPassword });
     } catch (err) {
       console.log(err);
@@ -82,6 +101,7 @@ export class AuthController {
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
   ) {
     try {
       const { email, password, code, rememberMe } = loginDto;
@@ -99,24 +119,23 @@ export class AuthController {
       const { password: p, ...userWithoutPassword } = user;
       if (loginDto.fromAdmin && !userWithoutPassword.isAdmin) {
         throw new UnauthorizedException('user_not_found');
-
       }
-      // if (!rememberMe) {
-      //   res.cookie('access', access_token, {
-      //     httpOnly: true, // Prevent access via JavaScript (XSS protection)
-      //     secure: true, // Use HTTPS
-      //     sameSite: 'strict',
-      //   });
-      //   return res.status(200).json({ user: userWithoutPassword });
-      // }
       this.authService.setAuthCookies(
         res,
         access_token,
         refresh_token,
         rememberMe,
       );
+      void this.audit.logAuth(AuditAction.LOGIN_SUCCESS, this.getAuditCtx(req), {
+        userId: userWithoutPassword.id,
+        status: 200,
+      });
       return res.status(200).json({ user: userWithoutPassword });
     } catch (error) {
+      void this.audit.logAuth(AuditAction.LOGIN_FAILED, this.getAuditCtx(req), {
+        status: 400,
+        metadata: { reason: error?.message },
+      });
       return res.status(400).send(error);
     }
   }
@@ -209,9 +228,9 @@ export class AuthController {
   }
 
   @Post('/logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
-    // this.authService.removeRefreshTokenFromResponse(res);
+  async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
     this.authService.clearAuthCookies(res);
+    void this.audit.logAuth(AuditAction.LOGOUT, this.getAuditCtx(req), { status: 200 });
     return res.status(200).send(true);
   }
 
@@ -270,9 +289,17 @@ export class AuthController {
   }
 
   @Post('/forget-reset')
-  async forgetStep3(@Body() forgetDto: ForgetDtoStep3, @Res() res: Response) {
+  async forgetStep3(
+    @Body() forgetDto: ForgetDtoStep3,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
     try {
       await this.authService.forgetStep3(forgetDto.password, forgetDto.email);
+      void this.audit.logAuth(AuditAction.PASSWORD_RESET, this.getAuditCtx(req), {
+        status: 200,
+        metadata: { email: forgetDto.email },
+      });
       return res.status(200).send(true);
     } catch (error) {
       return res.status(400).send(error);
