@@ -100,19 +100,9 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
-    // Auto-detect provider so the right signature algorithm runs.
-    // FK: body always has MERCHANT_ID + SIGN.
-    // Pally: body has order_id but no MERCHANT_ID. Requires CHECKOUT_CALLBACK_IP_WHITELIST or PALLY_WEBHOOK_SECRET + HMAC.
-    let provider: string | undefined;
-    if (body?.MERCHANT_ID && (body?.SIGN || body?.sign)) {
-      provider = 'fk';
-    } else if (body?.order_id && !body?.MERCHANT_ID) {
-      provider = 'pally';
-    }
     const result = await this.checkoutService.handleCallback(body, {
       ip,
       headers: req.headers as Record<string, any>,
-      provider: provider as any,
     });
     return res.send(result);
   }
