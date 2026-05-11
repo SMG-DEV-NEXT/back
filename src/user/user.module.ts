@@ -8,9 +8,10 @@ import { JwtService } from '@nestjs/jwt';
 import { MailService } from 'src/mail/mail.service';
 import { TokenService } from 'src/token/token.service';
 import { RecaptchaService } from 'src/recaptcha/recaptcha.service';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
-  imports: [],
+  imports: [AuditModule],
   controllers: [UserController],
   providers: [
     UserService,

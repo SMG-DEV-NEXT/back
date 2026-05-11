@@ -8,14 +8,10 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService,
-  ) {
+  constructor(private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) =>
@@ -28,20 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  private getClientIp(req: Request): string {
-    const ipHeader =
-      (req.headers['x-real-ip'] as string) ||
-      (req.headers['x-forwarded-for'] as string) ||
-      req.socket.remoteAddress ||
-      '';
-
-    return ipHeader
-      .split(',')[0]
-      .trim()
-      .replace(/^::ffff:/, '');
-  }
-
-  async validate(req: Request, payload: { userId: string }) {
+  async validate(_req: Request, payload: { userId: string }) {
     if (!payload.userId) {
       throw new HttpException(
         'Invalid token payload',
@@ -71,26 +54,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user) {
       throw new HttpException('User not found', HttpStatus.PAYMENT_REQUIRED);
-    }
-
-    if (user.isAdmin || user.role === 'admin') {
-      void this.audit.record({
-        type: 'admin',
-        event: 'admin_jwt_request',
-        severity: 'info',
-        userId: user.id,
-        userEmail: user.email,
-        userRole: user.role,
-        ip: this.getClientIp(req),
-        method: req.method,
-        path: req.originalUrl || req.url,
-        userAgent: req.headers['user-agent'] || null,
-        metadata: {
-          query: req.query,
-          body: req.body,
-          params: req.params,
-        },
-      });
     }
 
     return user;

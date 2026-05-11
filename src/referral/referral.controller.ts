@@ -18,31 +18,59 @@ import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('referral')
 export class ReferralController {
-  constructor(private readonly referralService: ReferralService) { }
+  constructor(
+    private readonly referralService: ReferralService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post()
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  create(@Body() dto: CreateReferralDto) {
-    return this.referralService.create(dto);
+  async create(@Body() dto: CreateReferralDto, @Req() req: any) {
+    const result = await this.referralService.create(dto);
+    void this.audit.logAdmin(AuditAction.ADMIN_CREATE, getAuditCtx(req), {
+      adminId: req.user?.id,
+      entity: 'Referral',
+      metadata: { id: (result as any)?.id, code: dto?.code },
+    });
+    return result;
   }
 
   @Patch(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateReferralDto) {
-    return this.referralService.update(id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateReferralDto,
+    @Req() req: any,
+  ) {
+    const result = await this.referralService.update(id, dto);
+    void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+      adminId: req.user?.id,
+      entity: 'Referral',
+      metadata: { id },
+    });
+    return result;
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async delete(@Param('id') id: string) {
+  async delete(@Param('id') id: string, @Req() req: any) {
     try {
-      return this.referralService.delete(id);
+      const result = await this.referralService.delete(id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Referral',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -74,7 +102,11 @@ export class ReferralController {
   @Get('resolve/:code')
   @UseGuards(OptionalJwtAuthGuard)
   resolveReferral(@Param('code') code: string, @Req() req: any) {
-    return this.referralService.resolveCodeForUser(code, req.user, req.query.isAlreadyResolved === 'true');
+    return this.referralService.resolveCodeForUser(
+      code,
+      req.user,
+      req.query.isAlreadyResolved === 'true',
+    );
   }
 
   @Post('track-view/:code')

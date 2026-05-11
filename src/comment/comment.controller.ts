@@ -22,10 +22,16 @@ import {
   UpdateComment,
 } from './dto';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('comments')
 export class CommentController {
-  constructor(private readonly commentService: CommentService) { }
+  constructor(
+    private readonly commentService: CommentService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post('create')
   @UseGuards(AuthGuard('jwt'))
@@ -41,9 +47,15 @@ export class CommentController {
   @Delete('remove/:id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async deleteComment(@Param() params: { id: string }) {
+  async deleteComment(@Param() params: { id: string }, @Req() req: any) {
     try {
-      return this.commentService.remove(params.id);
+      const result = await this.commentService.remove(params.id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Comment',
+        metadata: { id: params.id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -74,9 +86,19 @@ export class CommentController {
   @Put(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async saveComment(@Param() params: getComment, @Body() dto: UpdateComment) {
+  async saveComment(
+    @Param() params: getComment,
+    @Body() dto: UpdateComment,
+    @Req() req: any,
+  ) {
     try {
-      return this.commentService.saveComment(params.id, dto);
+      const result = await this.commentService.saveComment(params.id, dto);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Comment',
+        metadata: { id: params.id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }

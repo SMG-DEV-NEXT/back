@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/audit-client"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("AUDIT_DATABASE_URL")
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?
+  adminId   String?
+  action    String
+  entity    String?
+  method    String?
+  endpoint  String?
+  ip        String?
+  userAgent String?
+  status    Int?
+  severity  String   @default("INFO")
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@index([severity])
+}

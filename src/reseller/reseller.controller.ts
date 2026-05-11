@@ -24,17 +24,29 @@ import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('resellers')
 export class ResellerController {
-  constructor(private readonly resellerService: ResellerService) { }
+  constructor(
+    private readonly resellerService: ResellerService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post()
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async create(@Body() createDto: CreateResellerDto) {
+  async create(@Body() createDto: CreateResellerDto, @Req() req: any) {
     try {
-      return this.resellerService.create(createDto);
+      const result = await this.resellerService.create(createDto);
+      void this.audit.logAdmin(AuditAction.ADMIN_CREATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Reseller',
+        metadata: { id: (result as any)?.id, email: createDto?.email },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -98,9 +110,15 @@ export class ResellerController {
   @Delete('/request/:id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async removeRequest(@Param('id') id: string) {
+  async removeRequest(@Param('id') id: string, @Req() req: any) {
     try {
-      return this.resellerService.removeRequest(id);
+      const result = await this.resellerService.removeRequest(id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'ResellerRequest',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -120,6 +138,7 @@ export class ResellerController {
       await sendErrorNotification(error);
     }
   }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     try {
@@ -132,9 +151,19 @@ export class ResellerController {
   @Patch(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async update(@Param('id') id: string, @Body() updateDto: UpdateResellerDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateResellerDto,
+    @Req() req: any,
+  ) {
     try {
-      return this.resellerService.update(id, updateDto);
+      const result = await this.resellerService.update(id, updateDto);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Reseller',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -143,9 +172,15 @@ export class ResellerController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Req() req: any) {
     try {
-      return this.resellerService.remove(id);
+      const result = await this.resellerService.remove(id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Reseller',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }

@@ -5,7 +5,6 @@ import {
   Body,
   Param,
   Delete,
-  Patch,
   UseGuards,
   Put,
   Query,
@@ -26,17 +25,29 @@ import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('cheats')
 export class CheatController {
-  constructor(private readonly cheatService: CheatService) { }
+  constructor(
+    private readonly cheatService: CheatService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post('/restore')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async restoreCheat(@Body() { id }: { id: string }) {
+  async restoreCheat(@Body() { id }: { id: string }, @Req() req: any) {
     try {
-      return this.cheatService.restoreCheat(id);
+      const result = await this.cheatService.restoreCheat(id);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Cheat',
+        metadata: { id, action: 'restore' },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -45,9 +56,15 @@ export class CheatController {
   @Post()
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async create(@Body() createCheatDto: CreateCheatDto) {
+  async create(@Body() createCheatDto: CreateCheatDto, @Req() req: any) {
     try {
-      return this.cheatService.create(createCheatDto);
+      const result = await this.cheatService.create(createCheatDto);
+      void this.audit.logAdmin(AuditAction.ADMIN_CREATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Cheat',
+        metadata: { id: (result as any)?.id, title: createCheatDto?.titleEn },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -117,10 +134,7 @@ export class CheatController {
 
   @Get('view/:id')
   @UseGuards(OptionalJwtAuthGuard)
-  async getByIdClient(
-    @Param() params: ParamsIdDto,
-    @Req() req: any,
-  ) {
+  async getByIdClient(@Param() params: ParamsIdDto, @Req() req: any) {
     try {
       const user = req.user;
       return this.cheatService.getCheatView(params.id, user);
@@ -135,9 +149,16 @@ export class CheatController {
   async update(
     @Param() params: ParamsIdDto,
     @Body() updateCheatDto: UpdateCheatDto,
+    @Req() req: any,
   ) {
     try {
-      return this.cheatService.update(params.id, updateCheatDto);
+      const result = await this.cheatService.update(params.id, updateCheatDto);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Cheat',
+        metadata: { id: params.id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -146,9 +167,15 @@ export class CheatController {
   @Delete('many')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async deleteMany(@Body() ids: string[]) {
+  async deleteMany(@Body() ids: string[], @Req() req: any) {
     try {
-      return this.cheatService.deleteMany(ids);
+      const result = await this.cheatService.deleteMany(ids);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Cheat',
+        metadata: { ids, count: ids?.length },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -157,9 +184,15 @@ export class CheatController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async delete(@Param() params: ParamsIdDto) {
+  async delete(@Param() params: ParamsIdDto, @Req() req: any) {
     try {
-      return this.cheatService.delete(params.id);
+      const result = await this.cheatService.delete(params.id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Cheat',
+        metadata: { id: params.id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }

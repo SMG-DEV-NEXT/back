@@ -340,19 +340,3 @@ model WithdrawRequest {
   updatedAt      DateTime @updatedAt
 }
 
-model AuditLog {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  type       String
-  event      String
-  severity   String   @default("info")
-  userId     String?  @db.ObjectId
-  userEmail  String?
-  userRole   String?
-  ip         String?
-  method     String?
-  path       String?
-  userAgent  String?
-  statusCode Int?
-  metadata   Json?
-  createdAt  DateTime @default(now())
-}
