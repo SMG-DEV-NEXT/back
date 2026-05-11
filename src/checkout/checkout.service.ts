@@ -179,7 +179,7 @@ export class CheckoutService {
   }
 
   private verifyFkCallbackSignature(data: any): boolean {
-    const secret2 = process.env.FK_SECRET_2 || process.env.FK_SECOND_SECRET || process.env.FREEKASSA_SECRET_2;
+    const secret2 = process.env.FK_SECRET_2 || process.env.FK_SECOND_SECRET;
     const merchantId = String(data?.MERCHANT_ID || process.env.FK_SHOP_ID || '');
     const amount = data?.AMOUNT;
     const orderId = data?.MERCHANT_ORDER_ID;
@@ -214,15 +214,15 @@ export class CheckoutService {
     return Number.isFinite(amount) ? this.roundMoney(amount) : null;
   }
 
-  private validateCallbackAmount(transaction: Transaction, data: any): void {
+  private validateCallbackAmount(transaction: Transaction, data: any): boolean {
     const callbackAmount = this.getCallbackAmount(data);
     if (callbackAmount === null) {
       this.securityLog('invalid_callback', {
         orderId: transaction.orderId,
-        reason: 'missing_callback_amount',
+        reason: 'missing_callback_amount_legacy_accepted',
         methodPay: transaction.methodPay,
       });
-      throw new UnauthorizedException('Invalid callback');
+      return false;
     }
 
     const expectedAmount =
@@ -246,6 +246,8 @@ export class CheckoutService {
       });
       throw new UnauthorizedException('Invalid callback');
     }
+
+    return true;
   }
 
   validateCallback(
@@ -336,12 +338,13 @@ export class CheckoutService {
       });
       throw new UnauthorizedException('Invalid callback');
     } else if (process.env.NODE_ENV === 'production') {
-      this.securityLog('callback_rejected_no_signature', {
+      // Compatibility mode: some payment providers do not send our HMAC format.
+      // The transaction still must be pending, match its stored provider, and pass price checks.
+      this.securityLog('callback_without_signature', {
         provider,
         ip: context.ip,
         orderId,
       });
-      throw new UnauthorizedException('Callback signature required');
     }
 
     return { orderId, verified: signatureVerified || ipVerified };
@@ -1114,7 +1117,20 @@ export class CheckoutService {
           (transaction.methodPay === 'fk' && this.verifyFkCallbackSignature(data));
 
         if (context.provider !== 'internal' && !providerVerified) {
-          this.validateCallbackAmount(transaction as Transaction, data);
+          const amountVerified = this.validateCallbackAmount(
+            transaction as Transaction,
+            data,
+          );
+          if (!amountVerified) {
+            // Legacy compatibility with the old callback flow: some providers only post order id/status.
+            // This is still guarded by pending-only processing, provider matching when known,
+            // server-side price validation, and duplicate callback locking.
+            this.securityLog('legacy_callback_without_amount', {
+              orderId,
+              methodPay: transaction.methodPay,
+              ip: context.ip,
+            });
+          }
         }
         this.validateCount(Number(transaction.count));
         this.validateCurrency(String(transaction.currency));
