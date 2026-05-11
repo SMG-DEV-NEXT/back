@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaAuditService } from 'src/prisma/prisma-audit.service';
 import {
   AuditAction,
   AuditActionType,
   AuditSeverity,
+  AuditSeverityType,
 } from 'constants/audit-actions';
 import { AuditLogPayload, AuditRequestContext } from './audit.types';
 
@@ -32,7 +34,39 @@ export class AuditService {
     'twofactorsecret',
   ]);
 
-  constructor(private readonly prismaAudit: PrismaAuditService) {}
+  private readonly ALERT_SEVERITIES = new Set<AuditSeverityType>([
+    AuditSeverity.SECURITY,
+    AuditSeverity.CRITICAL,
+  ]);
+
+  constructor(private readonly prismaAudit: PrismaAuditService) { }
+
+  private async sendTelegramAlert(payload: AuditLogPayload): Promise<void> {
+    const token = process.env.SECURITY_TELEGRAM_GROUP_TOKEN;
+    const chatId = process.env.SECURITY_TELEGRAM_GROUP_ID;
+
+    if (!token || !chatId) return;
+    const emoji = payload.severity === AuditSeverity.CRITICAL ? '🚨' : '⚠️';
+    const lines = [
+      `${emoji} *AUDIT ALERT — ${payload.severity}*`,
+      `Action: \`${payload.action}\``,
+      payload.entity ? `Entity: \`${payload.entity}\`` : null,
+      payload.ip ? `IP: \`${payload.ip}\`` : null,
+      payload.endpoint ? `Endpoint: \`${payload.method ?? ''} ${payload.endpoint}\`` : null,
+      payload.userId ? `User: \`${payload.userId}\`` : null,
+      payload.adminId ? `Admin: \`${payload.adminId}\`` : null,
+      payload.metadata ? `Meta: \`${JSON.stringify(payload.metadata).slice(0, 200)}\`` : null,
+    ].filter(Boolean).join('\n');
+
+    try {
+      await axios.post(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        { chat_id: chatId, text: lines, parse_mode: 'Markdown' },
+      );
+    } catch (e) {
+      this.logger.warn(`Failed to send Telegram audit alert: ${e?.message}`);
+    }
+  }
 
   private sanitize(value: any): any {
     if (value === null || value === undefined) return value;
@@ -67,6 +101,10 @@ export class AuditService {
           metadata: this.sanitize(payload.metadata ?? {}),
         },
       });
+
+      if (this.ALERT_SEVERITIES.has(payload.severity as AuditSeverityType)) {
+        void this.sendTelegramAlert(payload);
+      }
     } catch (error) {
       // Audit failures must never break business flows.
       this.logger.error(
