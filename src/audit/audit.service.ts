@@ -48,23 +48,32 @@ export class AuditService {
     if (!token || !chatId) return;
     const emoji = payload.severity === AuditSeverity.CRITICAL ? '🚨' : '⚠️';
     const lines = [
-      `${emoji} *AUDIT ALERT — ${payload.severity}*`,
-      `Action: \`${payload.action}\``,
-      payload.entity ? `Entity: \`${payload.entity}\`` : null,
-      payload.ip ? `IP: \`${payload.ip}\`` : null,
-      payload.endpoint ? `Endpoint: \`${payload.method ?? ''} ${payload.endpoint}\`` : null,
-      payload.userId ? `User: \`${payload.userId}\`` : null,
-      payload.adminId ? `Admin: \`${payload.adminId}\`` : null,
-      payload.metadata ? `Meta: \`${JSON.stringify(payload.metadata).slice(0, 200)}\`` : null,
+      `${emoji} AUDIT ALERT — ${payload.severity}`,
+      `Action: ${payload.action}`,
+      payload.entity   ? `Entity: ${payload.entity}`                              : null,
+      payload.ip       ? `IP: ${payload.ip}`                                      : null,
+      payload.endpoint ? `Endpoint: ${payload.method ?? ''} ${payload.endpoint}` : null,
+      payload.userId   ? `User: ${payload.userId}`                                : null,
+      payload.adminId  ? `Admin: ${payload.adminId}`                              : null,
+      payload.metadata ? `Meta: ${JSON.stringify(payload.metadata).slice(0, 300)}` : null,
     ].filter(Boolean).join('\n');
 
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
+
     try {
+      const config: any = { timeout: 8000 };
+      if (proxyUrl) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { HttpsProxyAgent } = require('https-proxy-agent');
+        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+      }
       await axios.post(
         `https://api.telegram.org/bot${token}/sendMessage`,
-        { chat_id: chatId, text: lines, parse_mode: 'Markdown' },
+        { chat_id: chatId, text: lines },
+        config,
       );
     } catch (e) {
-      this.logger.warn(`Failed to send Telegram audit alert: ${e?.message}`);
+      this.logger.warn(`Failed to send Telegram audit alert: ${e?.response?.data?.description ?? e?.message}`);
     }
   }
 
