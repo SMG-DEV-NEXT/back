@@ -1116,6 +1116,28 @@ export class CheckoutService {
     } = {},
   ) {
     try {
+      if (!context.provider) {
+        const rawOrderId = data?.MERCHANT_ORDER_ID || data?.InvId || data?.order_id;
+        const preflightOrderId = typeof rawOrderId === 'string' ? rawOrderId.trim() : null;
+
+        if (!preflightOrderId || preflightOrderId.length > 80) {
+          this.securityLog('invalid_callback', { reason: 'missing_order_id' });
+          throw new BadRequestException('Invalid callback');
+        }
+
+        const preflight = await this.prisma.transaction.findFirst({
+          where: { orderId: preflightOrderId },
+          select: { methodPay: true },
+        });
+
+        if (!preflight) {
+          this.securityLog('invalid_callback', { orderId: preflightOrderId, reason: 'not_found' });
+          throw new NotFoundException('Transaction not found');
+        }
+
+        context = { ...context, provider: preflight.methodPay as 'fk' | 'pally' | 'b2pay' };
+      }
+
       const { orderId, verified } = this.validateCallback(data, context);
 
       const processedTransaction = await this.prisma.$transaction(async (tx) => {
