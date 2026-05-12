@@ -117,10 +117,7 @@ export class CheckoutController {
         headers: req.headers as Record<string, any>,
       },
     });
-    const result = await this.checkoutService.handleCallback(body, {
-      ip,
-      headers: req.headers as Record<string, any>,
-    });
+    const result = await this.checkoutService.handleCallback(body, { ip });
     return res.send(result);
   }
 
@@ -160,7 +157,6 @@ export class CheckoutController {
         {
           provider: 'b2pay',
           ip: getClientIp(req),
-          headers: req.headers as Record<string, any>,
         },
       );
     }
@@ -244,27 +240,18 @@ export class CheckoutController {
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getFilteredTransactions(
-    @Query('cheatId') cheatId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('search') search?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
-    @Query('referral') referral?: boolean,
-    @Query('reseller') reseller?: boolean,
-    @Query('promo') promo?: boolean,
+    @Query('filters') filtersRaw?: string,
   ) {
     try {
+      const filters: { key: string; value: string }[] = filtersRaw
+        ? JSON.parse(filtersRaw)
+        : [];
       return this.checkoutService.getFilteredTransactions({
-        cheatId,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
         page: parseInt(page, 10),
-        search,
         limit: parseInt(limit, 10),
-        referral,
-        reseller,
-        promo,
+        filters,
       });
     } catch (error) {
       await sendErrorNotification(error);

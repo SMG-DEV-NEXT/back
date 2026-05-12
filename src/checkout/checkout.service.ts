@@ -145,41 +145,6 @@ export class CheckoutService {
     }
   }
 
-  private getRequestSecret(headers: Record<string, any>, names: string[]) {
-    for (const name of names) {
-      const value = headers?.[name] || headers?.[name.toLowerCase()];
-      if (Array.isArray(value)) return value[0];
-      if (value) return String(value);
-    }
-    return '';
-  }
-
-  private safeJson(value: any) {
-    return JSON.stringify(value ?? {});
-  }
-
-  private timingSafeEqualHex(a: string, b: string) {
-    if (!a || !b) return false;
-    if (!/^[a-f0-9]+$/i.test(a) || !/^[a-f0-9]+$/i.test(b)) return false;
-    const left = Buffer.from(a, 'hex');
-    const right = Buffer.from(b, 'hex');
-    return left.length === right.length && crypto.timingSafeEqual(left, right);
-  }
-
-  private hmacPayload(payload: any, secret: string) {
-    const cleanPayload = { ...(payload || {}) };
-    delete cleanPayload.signature;
-    delete cleanPayload.sign;
-    delete cleanPayload.SIGN;
-    delete cleanPayload.hash;
-    const signString = Object.keys(cleanPayload)
-      .sort()
-      .map((key) => `${key}=${JSON.stringify(cleanPayload[key])}`)
-      .join('&');
-
-    return crypto.createHmac('sha256', secret).update(signString).digest('hex');
-  }
-
   private verifyFkCallbackSignature(data: any): boolean {
     const secret2 = process.env.FK_SECRET_2 || process.env.FK_SECOND_SECRET;
     const merchantId = String(data?.MERCHANT_ID || process.env.FK_SHOP_ID || '');
@@ -257,11 +222,9 @@ export class CheckoutService {
     context: {
       provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
       ip?: string;
-      headers?: Record<string, any>;
     } = {},
   ): { orderId: string; verified: boolean } {
     const provider = context.provider || 'unknown';
-    const headers = context.headers || {};
     const rawOrderId = data?.MERCHANT_ORDER_ID || data?.InvId || data?.order_id;
     const orderId = typeof rawOrderId === 'string' ? rawOrderId.trim() : rawOrderId;
 
@@ -278,78 +241,24 @@ export class CheckoutService {
       return { orderId, verified: true };
     }
 
-    const ipWhitelist = process.env.CHECKOUT_CALLBACK_IP_WHITELIST
-      ?.split(',')
-      .map((ip) => ip.trim())
-      .filter(Boolean);
-    const ipVerified = !!(ipWhitelist?.length && context.ip && ipWhitelist.includes(context.ip));
-    if (ipWhitelist?.length && context.ip && !ipVerified) {
-      this.securityLog('invalid_callback', {
-        provider,
-        reason: 'ip_not_whitelisted',
-        ip: context.ip,
-      });
-      throw new ForbiddenException('Invalid callback');
-    }
-
-    const webhookSecret =
-      context.provider === 'b2pay'
-        ? process.env.B2PAY_WEBHOOK_SECRET
-        : context.provider === 'pally'
-          ? process.env.PALLY_WEBHOOK_SECRET
-          : context.provider === 'fk'
-            ? process.env.FK_WEBHOOK_SECRET || process.env.FK_API_KEY
-            : '';
-
-    const headerSecret = this.getRequestSecret(headers, [
-      'x-webhook-secret',
-      'x-callback-secret',
-      'x-b2pay-secret',
-    ]);
-
-    if (webhookSecret && headerSecret && headerSecret !== webhookSecret) {
-      this.securityLog('invalid_callback', { provider, reason: 'bad_secret' });
-      throw new UnauthorizedException('Invalid callback');
-    }
-
-    const signature =
-      data?.signature ||
-      data?.sign ||
-      data?.SIGN ||
-      data?.hash ||
-      this.getRequestSecret(headers, [
-        'x-signature',
-        'x-pally-signature',
-        'x-b2pay-signature',
-      ]);
-
-    let signatureVerified = false;
-    if (context.provider === 'fk' && this.verifyFkCallbackSignature(data)) {
-      signatureVerified = true;
-    } else if (webhookSecret && signature) {
-      const expected = this.hmacPayload(data, webhookSecret);
-      if (!this.timingSafeEqualHex(String(signature), expected)) {
-        this.securityLog('invalid_callback', { provider, reason: 'bad_signature' });
-        throw new UnauthorizedException('Invalid callback');
+    if (provider !== 'b2pay') {
+      const ipWhitelist = process.env.CHECKOUT_CALLBACK_IP_WHITELIST
+        ?.split(',')
+        .map((ip) => ip.trim())
+        .filter(Boolean);
+      const ipVerified = !!(ipWhitelist?.length && context.ip && ipWhitelist.includes(context.ip));
+      if (ipWhitelist?.length && !ipVerified) {
+        this.securityLog('invalid_callback', {
+          provider,
+          reason: 'ip_not_whitelisted',
+          ip: context.ip,
+        });
+        throw new ForbiddenException('Invalid callback');
       }
-      signatureVerified = true;
-    } else if (headerSecret && !webhookSecret) {
-      this.securityLog('invalid_callback', {
-        provider,
-        reason: 'unexpected_callback_secret',
-      });
-      throw new UnauthorizedException('Invalid callback');
-    } else if (process.env.NODE_ENV === 'production') {
-      // Compatibility mode: some payment providers do not send our HMAC format.
-      // The transaction still must be pending, match its stored provider, and pass price checks.
-      this.securityLog('callback_without_signature', {
-        provider,
-        ip: context.ip,
-        orderId,
-      });
+      return { orderId, verified: ipVerified };
     }
 
-    return { orderId, verified: signatureVerified || ipVerified };
+    return { orderId, verified: false };
   }
 
   private validateBalanceOwner(authUser: User | null | undefined, checkoutUser: User) {
@@ -1112,7 +1021,6 @@ export class CheckoutService {
     context: {
       provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
       ip?: string;
-      headers?: Record<string, any>;
     } = {},
   ) {
     try {
@@ -1536,69 +1444,67 @@ export class CheckoutService {
   }
 
   async getFilteredTransactions(params: {
-    cheatId?: string;
-    startDate?: Date;
-    endDate?: Date;
     page?: number;
     limit?: number;
-    search?: string;
-    reseller?: boolean;
-    referral?: boolean;
-    promo?: boolean;
+    filters?: { key: string; value: string }[];
   }) {
-    const {
-      cheatId,
-      startDate,
-      endDate,
-      page = 1,
-      limit = 10,
-      search,
-      referral,
-      reseller,
-      promo,
-    } = params;
+    const { page = 1, limit = 10, filters = [] } = params;
 
     const where: any = {};
-    if (search) {
-      where.OR = [
-        { email: { contains: search, mode: 'insensitive' } },
 
-        { ip: { contains: search, mode: 'insensitive' } },
-      ];
+    for (const { key, value } of filters) {
+      switch (key) {
+        case 'email':
+          where.OR = [
+            { email: { contains: value, mode: 'insensitive' } },
+            { ip: { contains: value, mode: 'insensitive' } },
+          ];
+          break;
+        case 'cheatId':
+          where.cheatId = value;
+          break;
+        case 'catalogId':
+          where.cheat = { catalogId: value };
+          break;
+        case 'methodPay':
+          where.methodPay = value;
+          break;
+        case 'status':
+          where.status = value;
+          break;
+        case 'received':
+          where.status = value === 'true' ? 'success' : { not: 'success' };
+          break;
+        case 'isUsedBalance':
+          where.isUsedBalance = value === 'true';
+          break;
+        case 'promoCode':
+          where.promoCode = value;
+          break;
+        case 'referralId':
+          where.referralId = value;
+          break;
+        case 'reseller':
+          where.reseller = value;
+          break;
+        case 'userLanguage':
+          where.userLanguage = value;
+          break;
+        case 'currency':
+          where.currency = value;
+          break;
+        case 'orderId':
+          where.orderId = { contains: value, mode: 'insensitive' };
+          break;
+        case 'startDate':
+          where.createdAt = { ...where.createdAt, gte: new Date(value) };
+          break;
+        case 'endDate':
+          where.createdAt = { ...where.createdAt, lte: new Date(value) };
+          break;
+      }
     }
 
-    if (cheatId) {
-      where.cheatId = cheatId;
-    }
-    if (referral) {
-      where.referralId = {
-        not: null,
-      };
-    }
-    if (reseller) {
-      where.reseller = {
-        not: null,
-      };
-    }
-    if (promo) {
-      where.promoCode = {
-        not: null,
-      };
-    }
-    if (startDate && endDate) {
-      where.createdAt = {
-        gte: startDate,
-        lte: endDate,
-      };
-    } else if (startDate) {
-      where.createdAt = {
-        gte: startDate,
-      };
-    } else if (endDate) {
-      where.createdAt = {
-        lte: endDate,
-      };
-    }
     const transactions = await this.prisma.transaction.findMany({
       where,
       skip: (page - 1) * limit,
