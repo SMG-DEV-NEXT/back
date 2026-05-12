@@ -26,7 +26,7 @@ import {
 } from './dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuditService } from 'src/audit/audit.service';
-import { AuditAction } from 'constants/audit-actions';
+import { AuditAction, AuditSeverity } from 'constants/audit-actions';
 
 @Controller('auth')
 export class AuthController {
@@ -37,6 +37,14 @@ export class AuthController {
     private readonly twoFactorAuthService: TwoFactorAuthService,
     private readonly audit: AuditService,
   ) {}
+
+  private async isAdminEmail(email: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { isAdmin: true },
+    });
+    return user?.isAdmin === true;
+  }
 
   private getAuditCtx(req: Request) {
     const ip =
@@ -134,7 +142,7 @@ export class AuthController {
     } catch (error) {
       void this.audit.logAuth(AuditAction.LOGIN_FAILED, this.getAuditCtx(req), {
         status: 400,
-        metadata: { reason: error?.message },
+        metadata: { email: loginDto.email, reason: error?.message },
       });
       return res.status(400).send(error);
     }
@@ -263,12 +271,27 @@ export class AuthController {
   }
 
   @Post('/forget-email')
-  async forgetStep1(@Body() forgetDto: ForgetDtoStep1, @Res() res: Response) {
+  async forgetStep1(
+    @Body() forgetDto: ForgetDtoStep1,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
     try {
-      const data = await this.authService.forgetStep1(
-        forgetDto.email,
-        forgetDto.lang,
-      );
+      if (await this.isAdminEmail(forgetDto.email)) {
+        void this.audit.logSecurity(AuditAction.SUSPICIOUS_ACTIVITY, this.getAuditCtx(req), {
+          metadata: { email: forgetDto.email, step: 'forget-email', reason: 'admin_password_reset_attempt' },
+        });
+        return res.status(403).send({ message: 'forbidden' });
+      }
+      const data = await this.authService.forgetStep1(forgetDto.email, forgetDto.lang);
+      void this.audit.log({
+        action: AuditAction.PASSWORD_RESET,
+        entity: 'Auth',
+        severity: AuditSeverity.INFO,
+        ...this.getAuditCtx(req),
+        status: 200,
+        metadata: { email: forgetDto.email, step: 'forget-email' },
+      });
       return res.status(200).send(data);
     } catch (error) {
       return res.status(400).send(error);
@@ -276,12 +299,27 @@ export class AuthController {
   }
 
   @Post('/forget-code')
-  async forgetStep2(@Body() forgetDto: ForgetDtoStep2, @Res() res: Response) {
+  async forgetStep2(
+    @Body() forgetDto: ForgetDtoStep2,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
     try {
-      const isVerify = await this.authService.forgetStep2(
-        forgetDto.code,
-        forgetDto.email,
-      );
+      if (await this.isAdminEmail(forgetDto.email)) {
+        void this.audit.logSecurity(AuditAction.SUSPICIOUS_ACTIVITY, this.getAuditCtx(req), {
+          metadata: { email: forgetDto.email, step: 'forget-code', reason: 'admin_password_reset_attempt' },
+        });
+        return res.status(403).send({ message: 'forbidden' });
+      }
+      const isVerify = await this.authService.forgetStep2(forgetDto.code, forgetDto.email);
+      void this.audit.log({
+        action: AuditAction.PASSWORD_RESET,
+        entity: 'Auth',
+        severity: AuditSeverity.INFO,
+        ...this.getAuditCtx(req),
+        status: 200,
+        metadata: { email: forgetDto.email, step: 'forget-code' },
+      });
       return res.status(200).send(isVerify);
     } catch (error) {
       return res.status(400).send(error);
@@ -295,10 +333,20 @@ export class AuthController {
     @Req() req: Request,
   ) {
     try {
+      if (await this.isAdminEmail(forgetDto.email)) {
+        void this.audit.logSecurity(AuditAction.SUSPICIOUS_ACTIVITY, this.getAuditCtx(req), {
+          metadata: { email: forgetDto.email, step: 'forget-reset', reason: 'admin_password_reset_attempt' },
+        });
+        return res.status(403).send({ message: 'forbidden' });
+      }
       await this.authService.forgetStep3(forgetDto.password, forgetDto.email);
-      void this.audit.logAuth(AuditAction.PASSWORD_RESET, this.getAuditCtx(req), {
+      void this.audit.log({
+        action: AuditAction.PASSWORD_RESET,
+        entity: 'Auth',
+        severity: AuditSeverity.INFO,
+        ...this.getAuditCtx(req),
         status: 200,
-        metadata: { email: forgetDto.email },
+        metadata: { email: forgetDto.email, step: 'forget-reset' },
       });
       return res.status(200).send(true);
     } catch (error) {
