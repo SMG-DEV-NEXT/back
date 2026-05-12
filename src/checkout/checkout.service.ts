@@ -506,6 +506,7 @@ export class CheckoutService {
     currency: string = 'RUB',
     email: string,
     variantPay: number,
+    ip?: string,
   ) {
     const amountStr = currency !== 'RUB' ? amount.toFixed(2) : amount;
 
@@ -522,47 +523,60 @@ export class CheckoutService {
     const sortedKeys = Object.keys(data).sort();
     const signString = sortedKeys.map((k) => data[k]).join('|');
 
-    // 2️⃣ Генерируем подпись HMAC-SHA256
     const signature = crypto
       .createHmac('sha256', process.env.FK_API_KEY)
       .update(signString)
       .digest('hex');
 
-    // 3️⃣ Отправляем POST запрос
-    const response = await axios.post('https://api.fk.life/v1/orders/create', {
-      ...data,
-      signature,
-    });
-    // 4️⃣ Получаем ссылку на оплату
-    const payUrl = response.data?.location;
-    return payUrl;
+    try {
+      const response = await axios.post('https://api.fk.life/v1/orders/create', {
+        ...data,
+        signature,
+      });
+      return response.data?.location;
+    } catch (err) {
+      void this.audit.logPaymentProviderError('fk', { ip, method: 'POST', endpoint: '/checkout' }, {
+        orderId,
+        amount,
+        currency,
+        error: err?.response?.data?.message || err?.message,
+        metadata: { status: err?.response?.status, data: err?.response?.data },
+      });
+      throw err;
+    }
   }
 
-  async createBill({ amount, orderId }) {
+  async createBill({ amount, orderId, ip }: { amount: number; orderId: string; ip?: string }) {
+    const form = new FormData();
+    form.append('amount', amount);
+    form.append('order_id', orderId);
+    form.append('description', 'Покупка товара');
+    form.append('type', 'normal');
+    form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
+    form.append('currency_in', 'RUB');
+    form.append('custom', '');
+    form.append('payer_pays_commission', '0');
+    form.append('name', 'Платёж');
+
     try {
-      const form = new FormData();
-      form.append('amount', amount);
-      form.append('order_id', orderId);
-      form.append('description', 'Покупка товара');
-      form.append('type', 'normal');
-      form.append('shop_id', process.env.PALLY_MAGAZINE_ID);
-      form.append('currency_in', 'RUB');
-      form.append('custom', '');
-      form.append('payer_pays_commission', '0');
-      form.append('name', 'Платёж');
-
-      const url = 'https://pal24.pro/api/v1/bill/create';
-
-      const response = await axios.post(url, form, {
+      const response = await axios.post('https://pal24.pro/api/v1/bill/create', form, {
         headers: {
           Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
-          ...form.getHeaders(), // IMPORTANT!
+          ...form.getHeaders(),
         },
       });
-
       return response.data.link_page_url;
     } catch (err) {
-      console.log(err.response.data.errors);
+      void this.audit.logPaymentProviderError('pally', { ip, method: 'POST', endpoint: '/checkout' }, {
+        orderId,
+        amount,
+        currency: 'RUB',
+        error: err?.response?.data?.errors
+          ? JSON.stringify(err.response.data.errors)
+          : err?.message,
+        metadata: { status: err?.response?.status, data: err?.response?.data },
+      });
+      throw err;
     }
   }
 
@@ -615,11 +629,13 @@ export class CheckoutService {
     } catch (err) {
       const upstreamError = err?.response?.data;
       const upstreamStatus = err?.response?.status;
-      console.error('B2Pay error:', {
-        status: upstreamStatus,
-        data: upstreamError || err,
+      void this.audit.logPaymentProviderError('b2pay', { ip, method: 'POST', endpoint: '/checkout' }, {
+        orderId,
+        amount,
+        currency,
+        error: upstreamError?.error || upstreamError?.message || err?.message,
+        metadata: { status: upstreamStatus, data: upstreamError },
       });
-
       throw new BadGatewayException(
         upstreamError?.error ||
         upstreamError?.message ||
@@ -980,7 +996,7 @@ export class CheckoutService {
         );
         return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
       }
-      console.log(finalPrice)
+      console.log(finalPrice, data.methodPay)
 
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
       if (process.env.NODE_ENV === 'development' && process.env.CHECKOUT_AUTO_SUCCESS === 'true') {
@@ -1003,6 +1019,7 @@ export class CheckoutService {
             data.currency,
             transaction.email,
             data.variantPay,
+            ip,
           );
           break;
         case 'pally':
@@ -1012,6 +1029,7 @@ export class CheckoutService {
                 ? Math.round(finalPrice * serverUsdRate)
                 : Math.round(finalPrice),
             orderId,
+            ip,
           });
           break;
         case 'b2pay':
@@ -1020,7 +1038,7 @@ export class CheckoutService {
             finalPrice,
             data.currency,
             transaction.email,
-            ip
+            ip,
           );
           break;
       }
@@ -1033,13 +1051,8 @@ export class CheckoutService {
       return payUrl;
     } catch (error) {
       this.logger.error(error?.message || error);
-      if (
-        error?.response &&
-        error.response?.data &&
-        error.response.data?.error
-      ) {
-        return { error: error.response.data?.error };
-      }
+
+      // Pass through client errors as-is (validation, not found, etc.)
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException ||
@@ -1047,7 +1060,49 @@ export class CheckoutService {
       ) {
         throw error;
       }
-      throw new BadGatewayException('Checkout failed');
+
+      // Payment provider returned an HTTP error — map to user-friendly bilingual message
+      const upstreamMsg: string = (
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        ''
+      ).toLowerCase();
+
+      if (upstreamMsg.includes('ip') || upstreamMsg.includes('access_denied') || upstreamMsg.includes('ip_access')) {
+        return {
+          error: {
+            ru: 'Платёжный сервис временно недоступен. Попробуйте другой способ оплаты или обратитесь в поддержку.',
+            en: 'Payment service is temporarily unavailable. Please try another payment method or contact support.',
+          },
+        };
+      }
+
+      if (upstreamMsg.includes('locked') || upstreamMsg.includes('temporarily')) {
+        return {
+          error: {
+            ru: 'Платёжный сервис временно заблокирован. Пожалуйста, подождите несколько минут и попробуйте снова.',
+            en: 'Payment service is temporarily locked. Please wait a few minutes and try again.',
+          },
+        };
+      }
+
+      if (upstreamMsg.includes('amount') || upstreamMsg.includes('сумм')) {
+        return {
+          error: {
+            ru: 'Ошибка суммы платежа. Проверьте данные и попробуйте снова.',
+            en: 'Payment amount error. Please check the details and try again.',
+          },
+        };
+      }
+
+      // Generic provider failure
+      return {
+        error: {
+          ru: 'Ошибка при создании платежа. Попробуйте другой способ оплаты или повторите попытку позже.',
+          en: 'Payment creation failed. Please try another payment method or try again later.',
+        },
+      };
     }
   }
 

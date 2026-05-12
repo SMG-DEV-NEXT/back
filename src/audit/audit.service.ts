@@ -190,6 +190,35 @@ export class AuditService {
     });
   }
 
+  async logPaymentProviderError(
+    provider: string,
+    ctx: AuditRequestContext,
+    options: {
+      orderId?: string;
+      userId?: string;
+      amount?: number;
+      currency?: string;
+      error?: string;
+      metadata?: Record<string, any>;
+    } = {},
+  ): Promise<void> {
+    return this.log({
+      action: AuditAction.PAYMENT_FAILED,
+      entity: 'Transaction',
+      severity: AuditSeverity.CRITICAL,
+      ...ctx,
+      ...options,
+      metadata: {
+        provider,
+        orderId: options.orderId,
+        amount: options.amount,
+        currency: options.currency,
+        error: options.error,
+        ...options.metadata,
+      },
+    });
+  }
+
   async logSecurity(
     action: AuditActionType,
     ctx: AuditRequestContext,
