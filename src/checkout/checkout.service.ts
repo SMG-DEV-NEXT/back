@@ -241,24 +241,28 @@ export class CheckoutService {
       return { orderId, verified: true };
     }
 
-    if (provider !== 'b2pay') {
-      const ipWhitelist = process.env.CHECKOUT_CALLBACK_IP_WHITELIST
-        ?.split(',')
-        .map((ip) => ip.trim())
-        .filter(Boolean);
-      const ipVerified = !!(ipWhitelist?.length && context.ip && ipWhitelist.includes(context.ip));
-      if (ipWhitelist?.length && !ipVerified) {
-        this.securityLog('invalid_callback', {
-          provider,
-          reason: 'ip_not_whitelisted',
-          ip: context.ip,
-        });
-        throw new ForbiddenException('Invalid callback');
+    const raw = process.env.CHECKOUT_CALLBACK_IP_WHITELIST;
+    let ipWhitelist: string[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        ipWhitelist = Array.isArray(parsed) ? parsed.map(String) : [];
+      } catch {
+        ipWhitelist = raw.split(',').map((ip) => ip.trim()).filter(Boolean);
       }
-      return { orderId, verified: ipVerified };
     }
 
-    return { orderId, verified: false };
+    const ipVerified = !!(ipWhitelist.length && context.ip && ipWhitelist.includes(context.ip));
+    if (ipWhitelist.length && !ipVerified) {
+      this.securityLog('invalid_callback', {
+        provider,
+        reason: 'ip_not_whitelisted',
+        ip: context.ip,
+      });
+      throw new ForbiddenException('Invalid callback');
+    }
+
+    return { orderId, verified: ipVerified };
   }
 
   private validateBalanceOwner(authUser: User | null | undefined, checkoutUser: User) {
