@@ -20,6 +20,8 @@ import { Role } from 'constants/roles';
 import { Roles } from 'src/auth/roles/roles.decorator';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
 
 function getClientIp(req: Request): string {
   const ipHeader =
@@ -36,7 +38,10 @@ function getClientIp(req: Request): string {
 }
 @Controller('checkout')
 export class CheckoutController {
-  constructor(private readonly checkoutService: CheckoutService) { }
+  constructor(
+    private readonly checkoutService: CheckoutService,
+    private readonly auditService: AuditService,
+  ) { }
 
   private getClientInfo(req: any) {
     const forwardedFor = req.headers['x-forwarded-for']?.toString();
@@ -100,6 +105,18 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
+    void this.auditService.logTransaction(AuditAction.WEBHOOK_RECEIVED, {
+      ip,
+      method: 'POST',
+      endpoint: '/checkout/callback',
+      userAgent: req.headers['user-agent'],
+    }, {
+      metadata: {
+        body: JSON.stringify(body),
+        ip,
+        headers: req.headers as Record<string, any>,
+      },
+    });
     const result = await this.checkoutService.handleCallback(body, {
       ip,
       headers: req.headers as Record<string, any>,
@@ -116,6 +133,21 @@ export class CheckoutController {
       body?.tracking_id ||
       body?.orderNumber ||
       body?.order_id;
+
+    void this.auditService.logTransaction(AuditAction.WEBHOOK_RECEIVED, {
+      ip: getClientIp(req),
+      method: 'POST',
+      endpoint: '/checkout/b2pay/callback',
+      userAgent: req.headers['user-agent'],
+    }, {
+      metadata: {
+        MERCHANT_ORDER_ID: orderId,
+        providerPayload: body,
+        provider: 'b2pay',
+        ip: getClientIp(req),
+        headers: req.headers as Record<string, any>,
+      },
+    });
 
     if (!orderId) return { ok: false };
 
