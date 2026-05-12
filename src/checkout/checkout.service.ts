@@ -1073,7 +1073,7 @@ export class CheckoutService {
             orderId,
             status: existing.status,
           });
-          return null;
+          return "YES";
         }
 
         const transaction = await tx.transaction.findFirst({
