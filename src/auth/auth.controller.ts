@@ -190,6 +190,7 @@ export class AuthController {
           isAdmin: true,
           comments: true,
           accept: true,
+          isDeactivated: true,
           transactions: {
             where: { status: 'success' },
             include: { cheat: true },

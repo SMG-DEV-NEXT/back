@@ -21,6 +21,10 @@ export class UpdateUserDto {
   @IsOptional()
   accept: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isDeactivated?: boolean;
+
   @IsNumber()
   @IsOptional()
   balance?: number;
