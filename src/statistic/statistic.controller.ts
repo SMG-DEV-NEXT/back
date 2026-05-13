@@ -21,6 +21,39 @@ export class StatisticController {
     }
   }
 
+  @Get('/top-buyers')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async getTopBuyers() {
+    try {
+      return this.statisticService.getTopBuyers();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Get('/payment-methods')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async getPaymentMethodStats() {
+    try {
+      return this.statisticService.getPaymentMethodStats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
+  @Get('/top-cheats')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async getTopCheats() {
+    try {
+      return this.statisticService.getTopCheats();
+    } catch (error) {
+      await sendErrorNotification(error);
+    }
+  }
+
   @Get('/chart')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
