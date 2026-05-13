@@ -24,6 +24,7 @@ model User {
   accept             Boolean? @default(false)
   transactions Transaction[]
   role               String @default("user")
+  isDeactivated      Boolean @default(false)
   balance            Float @default(0)
   totalSpent         Float @default(0)
   balanceHistory     BalanceHistory[]

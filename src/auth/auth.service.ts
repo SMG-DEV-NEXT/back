@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -227,6 +228,9 @@ export class AuthService {
     const passwordIsValid = await bcrypt.compare(password, user.password);
     if (!passwordIsValid) {
       throw new UnauthorizedException('user_not_found');
+    }
+    if ((user as any).isDeactivated) {
+      throw new ForbiddenException('account_deactivated');
     }
     if (user.isTwoFactorEnabled && !code) {
       return { secret: user.twoFactorSecret };

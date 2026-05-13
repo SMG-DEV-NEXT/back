@@ -707,6 +707,10 @@ export class CheckoutService {
         user = await this.autoRegisterCheckoutUser(normalizedEmail, data.locale);
       }
 
+      if ((user as any).isDeactivated) {
+        throw new ForbiddenException('account_deactivated');
+      }
+
       let isReseller = await this.prisma.reseller.findFirst({
         where: {
           email: {
