@@ -1469,11 +1469,21 @@ export class CheckoutService {
           ];
           break;
         case 'cheatId':
-          where.cheatId = value;
+          where.cheatId = value
           break;
-        case 'catalogId':
-          where.cheat = { catalogId: value };
+        case 'catalogId': {
+          if (where.cheatId) break;
+          const catalogCheats = await this.prisma.cheat.findMany({
+            where: { catalogId: value },
+            select: { id: true },
+          });
+          const ids = catalogCheats.map((c) => c.id);
+          if (ids.length === 0) {
+            return { data: [], total: 0, page, limit, totalPages: 0 };
+          }
+          where.cheatId = { in: ids };
           break;
+        }
         case 'methodPay':
           where.methodPay = value;
           break;
@@ -1512,6 +1522,7 @@ export class CheckoutService {
           break;
       }
     }
+
 
     const transactions = await this.prisma.transaction.findMany({
       where,
