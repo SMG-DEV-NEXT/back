@@ -537,12 +537,24 @@ export class AuthService {
     password: string | undefined,
     image: string,
     id: any,
+    currentPassword?: string,
   ) {
     const updateData: any = {
       name,
       logo: image,
     };
     if (password) {
+      if (!currentPassword) {
+        throw new BadRequestException('current_password_required');
+      }
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { password: true },
+      });
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        throw new UnauthorizedException('current_password_invalid');
+      }
       const hashedPassword = await bcrypt.hash(password, 10);
       updateData.password = hashedPassword;
     }

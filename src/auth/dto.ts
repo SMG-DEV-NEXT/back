@@ -37,11 +37,20 @@ export class UpdateDto {
   @IsNotEmpty({ message: 'name_required' })
   name: string;
 
-  image: string;
+  @IsEmail({}, { message: 'email_invalid' })
+  email: string;
 
   @IsOptional()
   @MinLength(5, { message: 'password_min_5' })
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }
 
 export class LoginDto {

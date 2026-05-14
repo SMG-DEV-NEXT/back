@@ -389,12 +389,16 @@ export class AuthController {
     @Req() request: any,
   ) {
     try {
-      const { name, password, image } = data;
+      const { name, password, image, currentPassword, email } = data;
+      if (email.toLowerCase() !== request.user.email.toLowerCase()) {
+        throw new UnauthorizedException('email_mismatch');
+      }
       const updatedUser = await this.authService.updateUser(
         name,
         password,
         image,
         request.user.id,
+        currentPassword,
       );
       return res.status(200).send(updatedUser);
     } catch (error) {
