@@ -87,6 +87,8 @@ export class ResellerController {
   }
 
   @Put('/request')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async requestUpdate(@Body() dto: UpdateRequestDto) {
     try {
       const { id, ...data } = dto;
