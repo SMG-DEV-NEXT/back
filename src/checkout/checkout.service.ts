@@ -371,6 +371,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
+          proxy:false
         },
       );
     } catch (err) {
@@ -445,6 +446,8 @@ export class CheckoutService {
       const response = await axios.post('https://api.fk.life/v1/orders/create', {
         ...data,
         signature,
+      },{
+        proxy:false
       });
       return response.data?.location;
     } catch (err) {
@@ -477,9 +480,11 @@ export class CheckoutService {
           Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
           ...form.getHeaders(),
         },
+        proxy:false
       });
       return response.data.link_page_url;
     } catch (err) {
+      console.log(err)
       void this.audit.logPaymentProviderError('pally', { ip, method: 'POST', endpoint: '/checkout' }, {
         orderId,
         amount,
@@ -525,6 +530,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
+          proxy:false
         },
       );
 
@@ -967,6 +973,7 @@ export class CheckoutService {
       // return response.data.Data.redirectURL;
       return payUrl;
     } catch (error) {
+      console.log(error)
       this.logger.error(error?.message || error);
 
       // Pass through client errors as-is (validation, not found, etc.)
