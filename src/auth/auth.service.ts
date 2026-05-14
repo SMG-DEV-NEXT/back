@@ -390,7 +390,14 @@ export class AuthService {
     });
     return { qrCode: qrCodeDataURL, secret: secret.base32 };
   }
-  async disableTwoFactorAuth(user: User) {
+  async disableTwoFactorAuth(user: User, code: string) {
+    if (!user.twoFactorSecret) {
+      throw new BadRequestException('2fa_not_enabled');
+    }
+    const isValid = this.verifyFA(user.twoFactorSecret, code);
+    if (!isValid) {
+      throw new UnauthorizedException('invalid_code');
+    }
     await this.prisma.user.update({
       where: { id: user.id },
       data: { isTwoFactorEnabled: false },

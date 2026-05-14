@@ -16,6 +16,7 @@ import DOMPurify from 'dompurify';
 import { SanitizeService } from 'src/santizie/santizie.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  DisableFaDto,
   ForgetDtoStep1,
   ForgetDtoStep2,
   ForgetDtoStep3,
@@ -250,8 +251,25 @@ export class AuthController {
 
   @Post('/disable-fa')
   @UseGuards(AuthGuard('jwt'))
-  async DisableFa(@Req() request: any) {
-    return this.authService.disableTwoFactorAuth(request.user);
+  async DisableFa(
+    @Body() dto: DisableFaDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.authService.disableTwoFactorAuth(req.user, dto.code);
+      void this.audit.log({
+        action: AuditAction.SUSPICIOUS_ACTIVITY,
+        entity: 'Auth',
+        severity: AuditSeverity.WARN,
+        ...this.getAuditCtx(req),
+        status: 200,
+        metadata: { userId: req.user.id, action: 'disable_2fa' },
+      });
+      return res.status(200).send(true);
+    } catch (error) {
+      return res.status(400).send(error);
+    }
   }
 
   @Get('/get-qr')

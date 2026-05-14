@@ -82,6 +82,12 @@ export class ForgetDtoStep2 {
   email: string;
 }
 
+export class DisableFaDto {
+  @IsString()
+  @IsNotEmpty({ message: 'code_required' })
+  code: string;
+}
+
 export class ForgetDtoStep3 {
   @MinLength(5, { message: 'password_min_5' })
   password: string;
