@@ -16,6 +16,7 @@ import DOMPurify from 'dompurify';
 import { SanitizeService } from 'src/santizie/santizie.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ConfirmFaDto,
   DisableFaDto,
   ForgetDtoStep1,
   ForgetDtoStep2,
@@ -247,6 +248,21 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async generate(@Req() request: any) {
     return this.authService.enableTwoFactorAuth(request.user);
+  }
+
+  @Post('/confirm-fa')
+  @UseGuards(AuthGuard('jwt'))
+  async confirmFa(
+    @Body() dto: ConfirmFaDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.authService.confirmTwoFactorAuth(req.user, dto.code);
+      return res.status(200).send(true);
+    } catch (error) {
+      return res.status(400).send(error);
+    }
   }
 
   @Post('/disable-fa')
