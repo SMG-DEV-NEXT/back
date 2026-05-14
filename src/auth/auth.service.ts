@@ -251,12 +251,15 @@ export class AuthService {
     };
   }
 
+  sanitizeUser<T extends Record<string, any>>(user: T): Omit<T, 'twoFactorSecret'> & { hasTwoFactorSecret: boolean } {
+    const { twoFactorSecret, ...rest } = user as any;
+    return { ...rest, hasTwoFactorSecret: !!twoFactorSecret };
+  }
+
   async verifyToken(token: string) {
     const { id } = this.jwtService.verify(token);
     const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-      },
+      where: { id },
       include: {
         transactions: { include: { cheat: true } },
         comments: true,
@@ -266,7 +269,8 @@ export class AuthService {
       throw new BadRequestException('email_not_found');
     }
     const { password, ...data } = user;
-    const dataWithLoyalty = await this.attachLoyaltyData(data as any);
+    const safeData = this.sanitizeUser(data);
+    const dataWithLoyalty = await this.attachLoyaltyData(safeData as any);
     const tokens = this.generateTokens(id);
     return { data: dataWithLoyalty, tokens };
   }

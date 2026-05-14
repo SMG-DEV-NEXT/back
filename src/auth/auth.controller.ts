@@ -15,7 +15,6 @@ import { Request, Response } from 'express';
 import DOMPurify from 'dompurify';
 import { SanitizeService } from 'src/santizie/santizie.service';
 import { AuthGuard } from '@nestjs/passport';
-import { TwoFactorAuthService } from 'src/twofactor/towfactor.service';
 import {
   ForgetDtoStep1,
   ForgetDtoStep2,
@@ -34,7 +33,6 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sanitizeService: SanitizeService,
     private prisma: PrismaService,
-    private readonly twoFactorAuthService: TwoFactorAuthService,
     private readonly audit: AuditService,
   ) {}
 
@@ -197,8 +195,9 @@ export class AuthController {
           },
         },
       });
+      const safeUser = this.authService.sanitizeUser(user as any);
       const userWithLoyalty = await this.authService.attachClientUserLoyalty(
-        user as any,
+        safeUser as any,
       );
       return res.status(200).send(userWithLoyalty);
     }
@@ -259,16 +258,11 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async getQR(@Req() request: any, @Res({ passthrough: true }) res: Response) {
     try {
-      const { qrCode, secret } = await this.authService.getTwoFactorAuth(
+      const { qrCode } = await this.authService.getTwoFactorAuth(
         request.user.id,
       );
-      return res.status(200).send({ qrCode, secret });
+      return res.status(200).send({ qrCode });
     } catch (err) { }
-  }
-
-  @Post('verify-fa')
-  verify(@Body() { secret, token }: { secret: string; token: string }) {
-    return { valid: this.twoFactorAuthService.verifyToken(secret, token) };
   }
 
   @Post('/forget-email')

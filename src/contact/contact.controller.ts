@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { CreateContactDto, UpdateContactDto } from './dto';
@@ -14,6 +15,10 @@ import sendErrorNotification from 'src/utils/sendTGError';
 import { AuditService } from 'src/audit/audit.service';
 import { AuditAction } from 'constants/audit-actions';
 import { getAuditCtx } from 'src/utils/audit-ctx';
+import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from 'src/auth/roles/roles.guard';
+import { Roles } from 'src/auth/roles/roles.decorator';
+import { Role } from 'constants/roles';
 
 @Controller('contacts')
 export class ContactController {
@@ -22,6 +27,8 @@ export class ContactController {
     private readonly audit: AuditService,
   ) {}
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post()
   async create(@Body() dto: CreateContactDto, @Req() req: any) {
     try {
@@ -37,6 +44,8 @@ export class ContactController {
     }
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Put(':id')
   async update(
     @Param('id') id: string,
@@ -74,6 +83,8 @@ export class ContactController {
     }
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Delete(':id')
   async delete(@Param('id') id: string, @Req() req: any) {
     try {
