@@ -88,4 +88,8 @@ export class ForgetDtoStep3 {
 
   @IsEmail({}, { message: 'email_invalid' })
   email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  resetToken: string;
 }

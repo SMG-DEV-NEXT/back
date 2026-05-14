@@ -312,7 +312,7 @@ export class AuthController {
         });
         return res.status(403).send({ message: 'forbidden' });
       }
-      const isVerify = await this.authService.forgetStep2(forgetDto.code, forgetDto.email);
+      const resetToken = await this.authService.forgetStep2(forgetDto.code, forgetDto.email);
       void this.audit.log({
         action: AuditAction.PASSWORD_RESET,
         entity: 'Auth',
@@ -321,7 +321,7 @@ export class AuthController {
         status: 200,
         metadata: { email: forgetDto.email, step: 'forget-code' },
       });
-      return res.status(200).send(isVerify);
+      return res.status(200).send({ resetToken });
     } catch (error) {
       return res.status(400).send(error);
     }
@@ -340,7 +340,7 @@ export class AuthController {
         });
         return res.status(403).send({ message: 'forbidden' });
       }
-      await this.authService.forgetStep3(forgetDto.password, forgetDto.email);
+      await this.authService.forgetStep3(forgetDto.password, forgetDto.email, forgetDto.resetToken);
       void this.audit.log({
         action: AuditAction.PASSWORD_RESET,
         entity: 'Auth',
@@ -351,6 +351,20 @@ export class AuthController {
       });
       return res.status(200).send(true);
     } catch (error) {
+      if (error?.message === 'invalid_reset_token') {
+        void this.audit.log({
+          action: AuditAction.INVALID_TOKEN,
+          entity: 'Security',
+          severity: AuditSeverity.CRITICAL,
+          ...this.getAuditCtx(req),
+          status: 401,
+          metadata: {
+            email: forgetDto.email,
+            step: 'forget-reset',
+            reason: 'invalid_or_replayed_reset_token',
+          },
+        });
+      }
       return res.status(400).send(error);
     }
   }

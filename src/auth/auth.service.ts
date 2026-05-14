@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from '@prisma/client';
 import { Response } from 'express';
@@ -440,7 +441,18 @@ export class AuthService {
 
     return { message: 'Code sended.', isTwoFactor: false };
   }
-  async forgetStep2(code: string, email: string) {
+  private issueResetToken(userId: string, email: string): string {
+    return this.jwtService.sign(
+      { sub: userId, email, purpose: 'password-reset' },
+      { expiresIn: '15m' },
+    );
+  }
+
+  private hashResetToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  async forgetStep2(code: string, email: string): Promise<string> {
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
@@ -448,25 +460,59 @@ export class AuthService {
     if (user.isTwoFactorEnabled) {
       const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
       if (!isTrueCode) {
-        throw new UnauthorizedException('Неверный код');
+        throw new UnauthorizedException('invalid_code');
       }
-      return isTrueCode;
+    } else {
+      if (user.resetCode !== code) {
+        throw new UnauthorizedException('invalid_code');
+      }
     }
-    if (user.resetCode === code) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { resetCode: '' },
-      });
-      return true;
-    }
-    return false;
+
+    // Issue a short-lived, single-use reset token and store its hash
+    const resetToken = this.issueResetToken(user.id, user.email);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: this.hashResetToken(resetToken) },
+    });
+
+    return resetToken;
   }
 
-  async forgetStep3(password: string, email: string) {
+  async forgetStep3(password: string, email: string, resetToken: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
     }
+
+    // Verify JWT signature, expiry, and purpose
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(resetToken);
+    } catch {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+    if (payload.purpose !== 'password-reset' || payload.email !== user.email) {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+
+    // Verify token hash matches stored value (single-use enforcement)
+    const expectedHash = this.hashResetToken(resetToken);
+    if (
+      !user.resetCode ||
+      !crypto.timingSafeEqual(
+        Buffer.from(expectedHash),
+        Buffer.from(user.resetCode),
+      )
+    ) {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+
+    // Consume the token before changing the password
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: '' },
+    });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
       where: { id: user.id },

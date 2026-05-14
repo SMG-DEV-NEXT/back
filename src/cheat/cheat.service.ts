@@ -128,7 +128,7 @@ export class CheatService {
           include: {
             user: {
               select: {
-                email: true,
+                name: true,
               },
             },
           },
