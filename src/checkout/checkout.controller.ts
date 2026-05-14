@@ -228,9 +228,17 @@ export class CheckoutController {
   }
 
   @Get('/:id')
-  async getTransactionPreview(@Param() param) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async getTransactionPreview(@Param() param, @Req() req: any) {
     try {
-      return this.checkoutService.getTransactionPreview(param.id);
+      const transaction = await this.checkoutService.getTransactionPreview(param.id);
+      if (req.user) {
+        const owns =
+          (transaction as any).userId === req.user.id ||
+          (transaction as any).email === req.user.email;
+        if (!owns) return null;
+      }
+      return transaction;
     } catch (error) {
       await sendErrorNotification(error);
     }

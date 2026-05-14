@@ -15,8 +15,9 @@ import { Request, Response } from 'express';
 import DOMPurify from 'dompurify';
 import { SanitizeService } from 'src/santizie/santizie.service';
 import { AuthGuard } from '@nestjs/passport';
-import { TwoFactorAuthService } from 'src/twofactor/towfactor.service';
 import {
+  ConfirmFaDto,
+  DisableFaDto,
   ForgetDtoStep1,
   ForgetDtoStep2,
   ForgetDtoStep3,
@@ -34,7 +35,6 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sanitizeService: SanitizeService,
     private prisma: PrismaService,
-    private readonly twoFactorAuthService: TwoFactorAuthService,
     private readonly audit: AuditService,
   ) {}
 
@@ -197,8 +197,9 @@ export class AuthController {
           },
         },
       });
+      const safeUser = this.authService.sanitizeUser(user as any);
       const userWithLoyalty = await this.authService.attachClientUserLoyalty(
-        user as any,
+        safeUser as any,
       );
       return res.status(200).send(userWithLoyalty);
     }
@@ -249,26 +250,53 @@ export class AuthController {
     return this.authService.enableTwoFactorAuth(request.user);
   }
 
+  @Post('/confirm-fa')
+  @UseGuards(AuthGuard('jwt'))
+  async confirmFa(
+    @Body() dto: ConfirmFaDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.authService.confirmTwoFactorAuth(req.user, dto.code);
+      return res.status(200).send(true);
+    } catch (error) {
+      return res.status(400).send(error);
+    }
+  }
+
   @Post('/disable-fa')
   @UseGuards(AuthGuard('jwt'))
-  async DisableFa(@Req() request: any) {
-    return this.authService.disableTwoFactorAuth(request.user);
+  async DisableFa(
+    @Body() dto: DisableFaDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.authService.disableTwoFactorAuth(req.user, dto.code);
+      void this.audit.log({
+        action: AuditAction.SUSPICIOUS_ACTIVITY,
+        entity: 'Auth',
+        severity: AuditSeverity.WARN,
+        ...this.getAuditCtx(req),
+        status: 200,
+        metadata: { userId: req.user.id, action: 'disable_2fa' },
+      });
+      return res.status(200).send(true);
+    } catch (error) {
+      return res.status(400).send(error);
+    }
   }
 
   @Get('/get-qr')
   @UseGuards(AuthGuard('jwt'))
   async getQR(@Req() request: any, @Res({ passthrough: true }) res: Response) {
     try {
-      const { qrCode, secret } = await this.authService.getTwoFactorAuth(
+      const { qrCode } = await this.authService.getTwoFactorAuth(
         request.user.id,
       );
-      return res.status(200).send({ qrCode, secret });
+      return res.status(200).send({ qrCode });
     } catch (err) { }
-  }
-
-  @Post('verify-fa')
-  verify(@Body() { secret, token }: { secret: string; token: string }) {
-    return { valid: this.twoFactorAuthService.verifyToken(secret, token) };
   }
 
   @Post('/forget-email')
@@ -312,7 +340,7 @@ export class AuthController {
         });
         return res.status(403).send({ message: 'forbidden' });
       }
-      const isVerify = await this.authService.forgetStep2(forgetDto.code, forgetDto.email);
+      const resetToken = await this.authService.forgetStep2(forgetDto.code, forgetDto.email);
       void this.audit.log({
         action: AuditAction.PASSWORD_RESET,
         entity: 'Auth',
@@ -321,7 +349,7 @@ export class AuthController {
         status: 200,
         metadata: { email: forgetDto.email, step: 'forget-code' },
       });
-      return res.status(200).send(isVerify);
+      return res.status(200).send({ resetToken });
     } catch (error) {
       return res.status(400).send(error);
     }
@@ -340,7 +368,7 @@ export class AuthController {
         });
         return res.status(403).send({ message: 'forbidden' });
       }
-      await this.authService.forgetStep3(forgetDto.password, forgetDto.email);
+      await this.authService.forgetStep3(forgetDto.password, forgetDto.email, forgetDto.resetToken);
       void this.audit.log({
         action: AuditAction.PASSWORD_RESET,
         entity: 'Auth',
@@ -351,6 +379,20 @@ export class AuthController {
       });
       return res.status(200).send(true);
     } catch (error) {
+      if (error?.message === 'invalid_reset_token') {
+        void this.audit.log({
+          action: AuditAction.INVALID_TOKEN,
+          entity: 'Security',
+          severity: AuditSeverity.CRITICAL,
+          ...this.getAuditCtx(req),
+          status: 401,
+          metadata: {
+            email: forgetDto.email,
+            step: 'forget-reset',
+            reason: 'invalid_or_replayed_reset_token',
+          },
+        });
+      }
       return res.status(400).send(error);
     }
   }
@@ -363,12 +405,16 @@ export class AuthController {
     @Req() request: any,
   ) {
     try {
-      const { name, password, image } = data;
+      const { name, password, image, currentPassword, email } = data;
+      if (email.toLowerCase() !== request.user.email.toLowerCase()) {
+        throw new UnauthorizedException('email_mismatch');
+      }
       const updatedUser = await this.authService.updateUser(
         name,
         password,
         image,
         request.user.id,
+        currentPassword,
       );
       return res.status(200).send(updatedUser);
     } catch (error) {

@@ -37,11 +37,20 @@ export class UpdateDto {
   @IsNotEmpty({ message: 'name_required' })
   name: string;
 
-  image: string;
+  @IsEmail({}, { message: 'email_invalid' })
+  email: string;
 
   @IsOptional()
   @MinLength(5, { message: 'password_min_5' })
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  image?: string;
 }
 
 export class LoginDto {
@@ -82,10 +91,26 @@ export class ForgetDtoStep2 {
   email: string;
 }
 
+export class DisableFaDto {
+  @IsString()
+  @IsNotEmpty({ message: 'code_required' })
+  code: string;
+}
+
+export class ConfirmFaDto {
+  @IsString()
+  @IsNotEmpty({ message: 'code_required' })
+  code: string;
+}
+
 export class ForgetDtoStep3 {
   @MinLength(5, { message: 'password_min_5' })
   password: string;
 
   @IsEmail({}, { message: 'email_invalid' })
   email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  resetToken: string;
 }
