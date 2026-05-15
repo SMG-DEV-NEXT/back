@@ -50,18 +50,18 @@ export class AuditService {
     const lines = [
       `${emoji} AUDIT ALERT — ${payload.severity}`,
       `Action: ${payload.action}`,
-      payload.entity   ? `Entity: ${payload.entity}`                              : null,
-      payload.ip       ? `IP: ${payload.ip}`                                      : null,
+      payload.entity ? `Entity: ${payload.entity}` : null,
+      payload.ip ? `IP: ${payload.ip}` : null,
       payload.endpoint ? `Endpoint: ${payload.method ?? ''} ${payload.endpoint}` : null,
-      payload.userId   ? `User: ${payload.userId}`                                : null,
-      payload.adminId  ? `Admin: ${payload.adminId}`                              : null,
+      payload.userId ? `User: ${payload.userId}` : null,
+      payload.adminId ? `Admin: ${payload.adminId}` : null,
       payload.metadata ? `Meta: ${JSON.stringify(payload.metadata).slice(0, 300)}` : null,
     ].filter(Boolean).join('\n');
 
     const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy;
 
     try {
-      const config: any = { timeout: 8000 };
+      const config: any = { timeout: 8000, proxy: false };
       if (proxyUrl) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { HttpsProxyAgent } = require('https-proxy-agent');
