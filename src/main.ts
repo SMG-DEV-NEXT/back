@@ -36,11 +36,8 @@ async function bootstrap() {
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
     prefix: '/api/uploads/',
-    setHeaders: (res, path) => {
-      res.setHeader(
-        'Access-Control-Allow-Origin',
-        process.env.FRONT_URL || 'http://localhost:3000',
-      );
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     },
   });
@@ -95,8 +92,20 @@ async function bootstrap() {
     }),
   ); // Adds security headers
   app.enableCors({
-    origin: [process.env.FRONT_URL, process.env.ADMIN_URL], // Replace with frontend URL
-    credentials: true, // Allow cookies
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        origin === 'https://smgcheats.com' ||
+        origin.endsWith('.smgcheats.com') ||
+        origin === 'http://localhost:3000' ||
+        origin === 'http://localhost:3001'
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization,x-audit-password',
   });
