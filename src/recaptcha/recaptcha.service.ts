@@ -15,6 +15,7 @@ export class RecaptchaService {
           secret: this.secretKey,
           response: token,
         },
+        proxy:false
       },
     );
 
