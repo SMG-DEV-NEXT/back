@@ -219,7 +219,10 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string, code: string): Promise<any> {
+  async login(email: string, password: string, code: string, token?: string): Promise<any> {
+    if (!code && token) {
+      await this.recaptchaService.validate(token);
+    }
     const user = await this.findUserByEmail(email, {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
@@ -438,7 +441,10 @@ export class AuthService {
     });
   }
 
-  async forgetStep1(email: string, lang: string) {
+  async forgetStep1(email: string, lang: string, token?: string) {
+    if (token) {
+      await this.recaptchaService.validate(token);
+    }
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');

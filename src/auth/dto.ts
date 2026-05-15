@@ -65,6 +65,10 @@ export class LoginDto {
   code?: string;
 
   @IsOptional()
+  @IsString()
+  token?: string;
+
+  @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   rememberMe: boolean;
@@ -81,6 +85,10 @@ export class ForgetDtoStep1 {
 
   @IsString()
   lang: string;
+
+  @IsString()
+  @IsNotEmpty()
+  token: string;
 }
 
 export class ForgetDtoStep2 {

@@ -112,13 +112,14 @@ export class AuthController {
     @Req() req: Request,
   ) {
     try {
-      const { email, password, code, rememberMe } = loginDto;
+      const { email, password, code, rememberMe, token } = loginDto;
       const sanitizedEmail = this.sanitizeService.sanitizeHtml(email);
       const santizedPassword = this.sanitizeService.sanitizeHtml(password);
       const data = await this.authService.login(
         sanitizedEmail,
         santizedPassword,
         code,
+        token,
       );
       if (data.secret) {
         return res.status(200).json(data);
@@ -312,7 +313,7 @@ export class AuthController {
         });
         return res.status(403).send({ message: 'forbidden' });
       }
-      const data = await this.authService.forgetStep1(forgetDto.email, forgetDto.lang);
+      const data = await this.authService.forgetStep1(forgetDto.email, forgetDto.lang, forgetDto.token);
       void this.audit.log({
         action: AuditAction.PASSWORD_RESET,
         entity: 'Auth',

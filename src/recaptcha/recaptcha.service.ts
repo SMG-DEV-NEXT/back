@@ -4,24 +4,28 @@ import axios from 'axios';
 
 @Injectable()
 export class RecaptchaService {
-  private readonly secretKey = process.env.RECAPTCHA_SECRET_KEY!;
+  private readonly secretKey =
+    process.env.NODE_ENV === 'development'
+      ? '0x0000000000000000000000000000000000000000'
+      : process.env.HCAPTCHA_SECRET_KEY!;
 
   async validate(token: string) {
+    const body = new URLSearchParams({
+      secret: this.secretKey,
+      response: token,
+    });
     const response = await axios.post(
-      `https://www.google.com/recaptcha/api/siteverify`,
-      null,
+      `https://hcaptcha.com/siteverify`,
+      body.toString(),
       {
-        params: {
-          secret: this.secretKey,
-          response: token,
-        },
-        proxy:false
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        proxy: false,
       },
     );
 
     const data = response.data;
     if (!data.success) {
-      throw new BadRequestException('reCAPTCHA verification failed');
+      throw new BadRequestException('hCaptcha verification failed');
     }
 
     return true;
