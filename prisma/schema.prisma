@@ -30,7 +30,7 @@ model User {
   balanceHistory     BalanceHistory[]
   rewards            Reward[]
   withdrawRequests   WithdrawRequest[]
-  referralCode       String?  @unique       // user's personal referral code (auto-generated at registration)
+  referralCode       String?               // user's personal referral code (auto-generated at registration)
   referredByCode     String?               // referral code used at registration
   referralBonusPaid  Boolean  @default(false) // whether 5% first-purchase bonus was paid to referrer
   registrationIp     String?               // IP address at time of registration
