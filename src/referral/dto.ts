@@ -1,5 +1,5 @@
 // referral.dto.ts
-import { IsString, IsInt, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsInt, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateReferralDto {
   @IsString()
@@ -18,6 +18,10 @@ export class CreateReferralDto {
   @IsOptional()
   @IsInt()
   prcentToBalance?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isAccumulating?: boolean;
 }
 
 export class UpdateReferralDto {
@@ -42,6 +46,6 @@ export class UpdateReferralDto {
   prcentToBalance?: number;
 
   @IsOptional()
-  @IsInt()
-  viewsCount?: number
+  @IsBoolean()
+  isAccumulating?: boolean;
 }

@@ -30,6 +30,22 @@ model User {
   balanceHistory     BalanceHistory[]
   rewards            Reward[]
   withdrawRequests   WithdrawRequest[]
+  referralCode       String?  @unique       // user's personal referral code (auto-generated at registration)
+  referredByCode     String?               // referral code used at registration
+  referralBonusPaid  Boolean  @default(false) // whether 5% first-purchase bonus was paid to referrer
+  registrationIp     String?               // IP address at time of registration
+  logs               UserLog[]
+}
+
+model UserLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id])
+  email     String?
+  action    String   // "register" | "login" | "checkout_register"
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
 }
 
 model Reward {
@@ -314,6 +330,7 @@ model Referral {
   prcentToPrice Int
   prcentToBalance Int          @default(0)
   viewsCount    Int            @default(0)
+  isAccumulating Boolean       @default(false) // if true, give prcentToBalance on every purchase by registered users
   transactions  Transaction[]  @relation("ReferralTransactions")
 }
 

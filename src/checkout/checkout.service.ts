@@ -292,10 +292,33 @@ export class CheckoutService {
     return password;
   }
 
-  private async autoRegisterCheckoutUser(email: string, locale: string) {
+  private generateReferralCode(length = 8): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = crypto.randomBytes(length);
+    let code = '';
+    for (let i = 0; i < length; i += 1) {
+      code += chars[bytes[i] % chars.length];
+    }
+    return code;
+  }
+
+  private async generateUniqueReferralCode(): Promise<string> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const code = this.generateReferralCode();
+      const existing = await (this.prisma as any).user.findFirst({
+        where: { referralCode: code } as any,
+        select: { id: true },
+      });
+      if (!existing) return code;
+    }
+    return this.generateReferralCode(12);
+  }
+
+  private async autoRegisterCheckoutUser(email: string, locale: string, referredByCode?: string | null, ip?: string | null) {
     const temporaryPassword = this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     const normalizedEmail = this.normalizeEmail(email);
+    const referralCode = await this.generateUniqueReferralCode();
 
     const createdUser = await this.prisma.user.create({
       data: {
@@ -307,7 +330,14 @@ export class CheckoutService {
         isTwoFactorEnabled: false,
         resetCode: '',
         accept: true,
+        ...(referralCode ? { referralCode } as any : {}),
+        ...(referredByCode ? { referredByCode } as any : {}),
+        ...(ip ? { registrationIp: ip } as any : {}),
       },
+    });
+
+    await (this.prisma as any).userLog.create({
+      data: { userId: createdUser.id, email: normalizedEmail, action: 'checkout_register', ip: ip || null },
     });
 
     const lang = locale === 'en' ? 'en' : 'ru';
@@ -371,7 +401,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          proxy:false
+          proxy: false
         },
       );
     } catch (err) {
@@ -446,8 +476,8 @@ export class CheckoutService {
       const response = await axios.post('https://api.fk.life/v1/orders/create', {
         ...data,
         signature,
-      },{
-        proxy:false
+      }, {
+        proxy: false
       });
       return response.data?.location;
     } catch (err) {
@@ -480,7 +510,7 @@ export class CheckoutService {
           Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
           ...form.getHeaders(),
         },
-        proxy:false
+        proxy: false
       });
       return response.data.link_page_url;
     } catch (err) {
@@ -530,7 +560,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          proxy:false
+          proxy: false
         },
       );
 
@@ -700,6 +730,27 @@ export class CheckoutService {
       const serverUsdRate = await this.getServerUsdRate();
       const ref = data.ref;
       let refOwner = null;
+
+      // Pre-validate ref to determine referredByCode before user creation/lookup
+      let validatedReferredByCode: string | null = null;
+      if (ref) {
+        const adminRefExists = await this.prisma.referral.findFirst({
+          where: { code: ref },
+          select: { id: true },
+        });
+        if (adminRefExists) {
+          validatedReferredByCode = ref;
+        } else {
+          const userRefExists = await (this.prisma as any).user.findFirst({
+            where: { referralCode: ref } as any,
+            select: { id: true },
+          });
+          if (userRefExists) {
+            validatedReferredByCode = ref;
+          }
+        }
+      }
+
       let user = await this.prisma.user.findFirst({
         where: {
           email: {
@@ -710,7 +761,17 @@ export class CheckoutService {
       });
 
       if (!user) {
-        user = await this.autoRegisterCheckoutUser(normalizedEmail, data.locale);
+        // IP fraud check: if another account from this IP already used this referral code, drop the referral silently
+        let safeReferredByCode = validatedReferredByCode;
+        if (safeReferredByCode && ip && process.env.NODE_ENV !== 'development') {
+          const ipDuplicate = await (this.prisma as any).user.findFirst({
+            where: { registrationIp: ip, referredByCode: safeReferredByCode } as any,
+          });
+          if (ipDuplicate) {
+            safeReferredByCode = null;
+          }
+        }
+        user = await this.autoRegisterCheckoutUser(normalizedEmail, data.locale, safeReferredByCode, ip);
       }
 
       if ((user as any).isDeactivated) {
@@ -752,6 +813,7 @@ export class CheckoutService {
       this.assertFiniteMoney(Number(price), 'planPrice');
       this.assertFiniteMoney(Number(initialPrice), 'initialPrice');
       let discount = 0;
+      let personalRefDiscountApplied = false;
       if (ref) {
         const foundReferral = await this.prisma.referral.findFirst({
           where: {
@@ -787,7 +849,37 @@ export class CheckoutService {
           price -= (initialPrice / 100) * refOwner.prcentToPrice;
           discount += refOwner.prcentToPrice;
         }
+
+        // User personal referral code: 5% price discount on first purchase (only from stored code set at registration)
+        if (!refOwner && (user as any).referredByCode && !(user as any).referralBonusPaid) {
+          const codeOwner = await (this.prisma as any).user.findFirst({
+            where: { referralCode: (user as any).referredByCode } as any,
+            select: { id: true },
+          });
+          if (codeOwner && codeOwner.id !== user.id) {
+            this.validateDiscount(5, 'referral');
+            price -= (initialPrice / 100) * 5;
+            discount += 5;
+            personalRefDiscountApplied = true;
+          }
+        }
       }
+
+      // Logged-in user with saved referredByCode and no purchase yet → auto-apply 5% discount
+      // Skip if already applied above via the ref URL param (prevents double discount)
+      if (!personalRefDiscountApplied && !refOwner && !(user as any).referralBonusPaid && (user as any).referredByCode) {
+        const personalRefCode = (user as any).referredByCode as string;
+        const codeOwner = await (this.prisma as any).user.findFirst({
+          where: { referralCode: personalRefCode } as any,
+          select: { id: true },
+        });
+        if (codeOwner && codeOwner.id !== user.id) {
+          this.validateDiscount(5, 'referral');
+          price -= (initialPrice / 100) * 5;
+          discount += 5;
+        }
+      }
+
       // Loyalty discount — based on user's total spend history
       let loyaltyPercent = 0;
       if (user?.id && authUser) {
@@ -1277,6 +1369,115 @@ export class CheckoutService {
             }
           }
         }
+        // User personal referral: 5% one-time bonus when referred user makes first purchase
+        // Admin accumulating referral: prcentToBalance on every purchase by registered users
+        if (transaction.userId) {
+          const buyer = await tx.user.findUnique({ where: { id: transaction.userId } });
+          const referredByCode = (buyer as any)?.referredByCode as string | null;
+          if (referredByCode) {
+            // Atomically claim the one-time bonus slot — prevents double-payment when two
+            // callbacks for the same buyer's separate transactions run concurrently.
+            const claimed = await tx.user.updateMany({
+              where: { id: buyer.id, referralBonusPaid: false } as any,
+              data: { referralBonusPaid: true } as any,
+            });
+
+            if (claimed.count === 1) {
+              const referrerUser = await tx.user.findFirst({
+                where: { referralCode: referredByCode } as any,
+              });
+
+              if (referrerUser && referrerUser.id !== transaction.userId) {
+                const bonusBase = this.roundMoney(
+                  Math.max(Number(transaction.realPrice || 0) - Number((transaction as any).balanceDiscount || 0), 0),
+                );
+                const bonus = this.roundMoney((bonusBase * 5) / 100);
+
+                if (bonus > 0) {
+                  const referrerBalanceBefore = (referrerUser as any).balance || 0;
+                  const referrerBalanceAfter = this.roundMoney(referrerBalanceBefore + bonus);
+                  await tx.user.update({
+                    where: { id: referrerUser.id },
+                    data: { balance: { increment: bonus } } as any,
+                  });
+                  await this.createBalanceHistory(
+                    referrerUser.id,
+                    'ADD_BALANCE',
+                    {
+                      action: 'USER_REFERRAL_FIRST_PURCHASE_BONUS',
+                      balanceBefore: referrerBalanceBefore,
+                      balanceAfter: referrerBalanceAfter,
+                      bonusPercent: 5,
+                      bonusAmount: bonus,
+                      bonusBaseRub: bonusBase,
+                      referredUserEmail: buyer.email,
+                      referredUserId: buyer.id,
+                      transactionId: transaction.id,
+                      orderId: transaction.orderId,
+                      createdAt: new Date().toISOString(),
+                    },
+                    tx,
+                  );
+                }
+              }
+            }
+
+            // Check if the code belongs to an admin referral with isAccumulating enabled
+            const adminReferral = await tx.referral.findFirst({
+              where: { code: referredByCode, isAccumulating: true } as any,
+            });
+            if (adminReferral && adminReferral.userAccountEmail) {
+              const accumulatingOwner = await tx.user.findFirst({
+                where: {
+                  email: { equals: adminReferral.userAccountEmail, mode: 'insensitive' },
+                },
+              });
+              if (accumulatingOwner && accumulatingOwner.id !== transaction.userId) {
+                const bonusPercent = Number(adminReferral.prcentToBalance || 0);
+                this.validateDiscount(bonusPercent, 'referral');
+                if (bonusPercent > 0) {
+                  const bonusBase = this.roundMoney(
+                    Math.max(Number(transaction.realPrice || 0) - Number((transaction as any).balanceDiscount || 0), 0),
+                  );
+                  const bonus = this.roundMoney((bonusBase * bonusPercent) / 100);
+
+                  if (bonus > 0) {
+                    const balanceBefore = (accumulatingOwner as any).balance || 0;
+                    const balanceAfter = this.roundMoney(balanceBefore + bonus);
+                    await tx.user.update({
+                      where: { id: accumulatingOwner.id },
+                      data: { balance: { increment: bonus } } as any,
+                    });
+                    await tx.referral.update({
+                      where: { id: adminReferral.id },
+                      data: { transactions: { connect: { id: transaction.id } } },
+                    });
+                    await this.createBalanceHistory(
+                      accumulatingOwner.id,
+                      'ADD_BALANCE',
+                      {
+                        action: 'ACCUMULATING_REFERRAL_BONUS',
+                        balanceBefore,
+                        balanceAfter,
+                        bonusPercent,
+                        bonusAmount: bonus,
+                        bonusBaseRub: bonusBase,
+                        referralCode: adminReferral.code,
+                        referralId: adminReferral.id,
+                        referredUserEmail: buyer.email,
+                        referredUserId: buyer.id,
+                        transactionId: transaction.id,
+                        orderId: transaction.orderId,
+                        createdAt: new Date().toISOString(),
+                      },
+                      tx,
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
 
         if (transaction.userId && (transaction as any).isUsedBalance) {
           const checkoutUser = await tx.user.findUnique({
@@ -1509,6 +1710,18 @@ export class CheckoutService {
         case 'referralId':
           where.referralId = value;
           break;
+        case 'userReferralCode': {
+          const referredUsers = await (this.prisma as any).user.findMany({
+            where: { referredByCode: value } as any,
+            select: { id: true },
+          });
+          const userIds = referredUsers.map((u: any) => u.id);
+          if (userIds.length === 0) {
+            return { data: [], total: 0, page, limit, totalPages: 0 };
+          }
+          where.userId = { in: userIds };
+          break;
+        }
         case 'reseller':
           where.reseller = value;
           break;
@@ -1545,6 +1758,12 @@ export class CheckoutService {
               },
             },
           },
+        },
+        referral: {
+          select: { code: true },
+        },
+        user: {
+          select: { referredByCode: true } as any,
         },
       },
       orderBy: {
