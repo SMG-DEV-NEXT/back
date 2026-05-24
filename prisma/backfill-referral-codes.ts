@@ -20,26 +20,29 @@ async function generateUniqueCode(name: string, usedCodes: Set<string>): Promise
 }
 
 async function main() {
-  const users = await prisma.user.findMany({
-    where: { referralCode: null },
-    select: { id: true, name: true },
-  });
+  // Fetch all users and filter client-side — avoids Prisma/MongoDB null-vs-missing mismatch
+  const allUsers = await (prisma.user.findMany as any)({
+    select: { id: true, name: true, referralCode: true },
+  }) as Array<{ id: string; name: string; referralCode: string | null }>;
 
-  console.log(`Found ${users.length} users without referral codes`);
-  if (users.length === 0) return;
+  const users = allUsers.filter((u) => !u.referralCode);
+  console.log(`Total users: ${allUsers.length}, need referral codes: ${users.length}`);
 
-  const existingCodes = await prisma.user.findMany({
-    where: { referralCode: { not: null } },
-    select: { referralCode: true },
-  });
-  const usedCodes = new Set(existingCodes.map((u) => u.referralCode!));
+  if (users.length === 0) {
+    console.log('Nothing to do.');
+    return;
+  }
+
+  const usedCodes = new Set(
+    allUsers.map((u) => u.referralCode).filter(Boolean) as string[],
+  );
 
   let updated = 0;
   for (const user of users) {
     const code = await generateUniqueCode(user.name, usedCodes);
-    await prisma.user.update({ where: { id: user.id }, data: { referralCode: code } });
+    await (prisma.user.update as any)({ where: { id: user.id }, data: { referralCode: code } });
     updated++;
-    if (updated % 100 === 0) console.log(`Updated ${updated}/${users.length}`);
+    if (updated % 50 === 0) console.log(`Updated ${updated}/${users.length}`);
   }
 
   console.log(`Done — assigned referral codes to ${updated} users`);
