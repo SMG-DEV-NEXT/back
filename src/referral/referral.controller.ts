@@ -125,6 +125,12 @@ export class ReferralController {
     );
   }
 
+  @Get('my-stats')
+  @UseGuards(AuthGuard('jwt'))
+  getMyReferralStats(@Req() req: any) {
+    return this.referralService.getMyReferralStats(req.user.id);
+  }
+
   @Post('track-view/:code')
   trackReferralView(@Param('code') code: string) {
     return this.referralService.incrementViewByCode(code);

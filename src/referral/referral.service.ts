@@ -148,6 +148,13 @@ export class ReferralService {
         return { valid: false, reason: 'OWN_REFERRAL' };
       }
 
+      if (!isAlreadyResolved) {
+        await (this.prisma as any).user.update({
+          where: { id: referralOwnerUser.id },
+          data: { referralViewsCount: { increment: 1 } } as any,
+        });
+      }
+
       return {
         valid: true,
         referral: {
@@ -280,6 +287,81 @@ export class ReferralService {
     );
 
     return { data: enriched, total };
+  }
+
+  async getMyReferralStats(userId: string) {
+    const user = await (this.prisma as any).user.findUnique({
+      where: { id: userId },
+      select: { referralCode: true, referralViewsCount: true },
+    });
+    if (!user?.referralCode) {
+      return { viewsCount: 0, registeredCount: 0, transactions: [], totalEarned: 0 };
+    }
+
+    const referredUsers = await (this.prisma as any).user.findMany({
+      where: { referredByCode: user.referralCode } as any,
+      select: { id: true, referralBonusPaid: true },
+    });
+
+    const referredUserIds = referredUsers.map((u: any) => u.id);
+
+    if (referredUserIds.length === 0) {
+      return {
+        viewsCount: user.referralViewsCount || 0,
+        registeredCount: 0,
+        transactions: [],
+        totalEarned: 0,
+      };
+    }
+
+    const rawTx = await this.prisma.transaction.findMany({
+      where: { userId: { in: referredUserIds }, status: 'success' },
+      select: {
+        id: true,
+        userId: true,
+        realPrice: true,
+        balanceDiscount: true,
+        createdAt: true,
+        cheat: { select: { titleRu: true, titleEn: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Find the first tx id per referred user (earliest date = where bonus was triggered)
+    const firstTxByUser: Record<string, string> = {};
+    for (const refUser of referredUsers as any[]) {
+      if (refUser.referralBonusPaid) {
+        const userTxs = rawTx
+          .filter((t) => t.userId === refUser.id)
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        if (userTxs.length > 0) firstTxByUser[refUser.id] = userTxs[0].id;
+      }
+    }
+
+    let totalEarned = 0;
+    const transactions = rawTx.map((t) => {
+      const isFirst = firstTxByUser[t.userId] === t.id;
+      const bonusBase = Math.max(
+        Number(t.realPrice || 0) - Number((t as any).balanceDiscount || 0),
+        0,
+      );
+      const earned = isFirst ? Math.round((bonusBase * 5) / 100 * 100) / 100 : 0;
+      totalEarned += earned;
+      return {
+        id: t.id,
+        createdAt: t.createdAt,
+        cheatTitleRu: t.cheat?.titleRu ?? null,
+        cheatTitleEn: t.cheat?.titleEn ?? null,
+        earned,
+      };
+    });
+
+    return {
+      viewsCount: user.referralViewsCount || 0,
+      registeredCount: referredUsers.length,
+      transactions,
+      totalEarned: Math.round(totalEarned * 100) / 100,
+    };
   }
 
   async getReferralMetrics(referralCode: string) {

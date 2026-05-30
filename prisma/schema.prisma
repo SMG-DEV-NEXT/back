@@ -34,6 +34,7 @@ model User {
   referredByCode     String?               // referral code used at registration
   referralBonusPaid  Boolean  @default(false) // whether 5% first-purchase bonus was paid to referrer
   registrationIp     String?               // IP address at time of registration
+  referralViewsCount Int      @default(0)  // views of this user's personal referral link
   logs               UserLog[]
 }
 
