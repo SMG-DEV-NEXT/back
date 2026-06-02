@@ -25,7 +25,7 @@ export class TokenService {
       where: { id: foundToken.userId },
       data: { accept: true },
     });
-    await this.prisma.token.delete({
+    await this.prisma.token.deleteMany({
       where: { userId: foundToken.userId },
     });
     return true;
