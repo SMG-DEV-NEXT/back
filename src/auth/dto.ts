@@ -31,6 +31,10 @@ export class RegisterDto {
 
   @IsString()
   token: string;
+
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
 
 export class UpdateDto {

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateReferralDto, UpdateReferralDto } from './dto';
 import { User } from '@prisma/client';
@@ -27,7 +28,7 @@ export class ReferralService {
       }
     }
     if (find) {
-      return new BadRequestException('This item already have.');
+      throw new BadRequestException('This item already have.');
     }
     return this.prisma.referral.create({
       data: {
@@ -37,15 +38,16 @@ export class ReferralService {
         prcentToPrice: dto.prcentToPrice,
         prcentToBalance: dto.prcentToBalance || 0,
         viewsCount: 0,
+        isAccumulating: dto.isAccumulating || false,
       } as any,
     });
   }
   generateReferralCode(length = 6) {
-    const chars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = crypto.randomBytes(length);
     let code = '';
     for (let i = 0; i < length; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+      code += chars[bytes[i] % chars.length];
     }
     return code;
   }
@@ -131,19 +133,45 @@ export class ReferralService {
     });
 
     if (!referral) {
-      return {
-        valid: false,
-        reason: 'NOT_FOUND',
-      };
-    }
-    if (!isAlreadyResolved) await this.incrementViewByCode(code);
+      // Check if it's a user personal referral code
+      const referralOwnerUser = await (this.prisma as any).user.findFirst({
+        where: { referralCode: code } as any,
+        select: { id: true, name: true, referralCode: true },
+      });
 
+      if (!referralOwnerUser) {
+        return { valid: false, reason: 'NOT_FOUND' };
+      }
 
-    if (!user) {
+      // Can't use own code
+      if (user && (user as any).referralCode === code) {
+        return { valid: false, reason: 'OWN_REFERRAL' };
+      }
+
+      if (!isAlreadyResolved) {
+        await (this.prisma as any).user.update({
+          where: { id: referralOwnerUser.id },
+          data: { referralViewsCount: { increment: 1 } } as any,
+        });
+      }
+
       return {
         valid: true,
-        referral,
+        referral: {
+          id: null,
+          code,
+          owner: referralOwnerUser.name,
+          prcentToPrice: 5,
+          prcentToBalance: 5,
+        },
       };
+    }
+
+    if (!isAlreadyResolved) await this.incrementViewByCode(code);
+
+    if (!user) {
+      const { userAccountEmail: _email, ...safeReferral } = referral;
+      return { valid: true, referral: safeReferral };
     }
 
     const isOwnReferral =
@@ -172,18 +200,14 @@ export class ReferralService {
       };
     }
 
-    return {
-      valid: true,
-      referral,
-    };
+    const { userAccountEmail: _email, ...safeReferral } = referral;
+    return { valid: true, referral: safeReferral };
   }
 
   async incrementViewByCode(code: string) {
-    return this.prisma.referral.update({
+    return this.prisma.referral.updateMany({
       where: { code },
-      data: {
-        viewsCount: { increment: 1 },
-      },
+      data: { viewsCount: { increment: 1 } },
     });
   }
 
@@ -210,5 +234,172 @@ export class ReferralService {
         },
       },
     });
+  }
+
+  async getUserReferrals(page: number, limit: number) {
+    const users = await (this.prisma as any).user.findMany({
+      where: { referralCode: { not: null } } as any,
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        referralCode: true,
+        referredByCode: true,
+        referralBonusPaid: true,
+        createdAt: true,
+        balance: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const total = await (this.prisma as any).user.count({
+      where: { referralCode: { not: null } } as any,
+    });
+
+    // For each user, count how many users they referred and how many of those purchased
+    const enriched = await Promise.all(
+      users.map(async (user: any) => {
+        const referredUsers = await (this.prisma as any).user.findMany({
+          where: { referredByCode: user.referralCode } as any,
+          select: { id: true, email: true, referralBonusPaid: true },
+        });
+
+        const referredUserIds = referredUsers.map((u: any) => u.id);
+
+        let purchasedCount = 0;
+        if (referredUserIds.length > 0) {
+          purchasedCount = await this.prisma.transaction.count({
+            where: {
+              userId: { in: referredUserIds },
+              status: 'success',
+            },
+          });
+        }
+
+        return {
+          ...user,
+          referredCount: referredUsers.length,
+          referredPurchasedCount: purchasedCount,
+        };
+      }),
+    );
+
+    return { data: enriched, total };
+  }
+
+  async getMyReferralStats(userId: string) {
+    const user = await (this.prisma as any).user.findUnique({
+      where: { id: userId },
+      select: { referralCode: true, referralViewsCount: true },
+    });
+    if (!user?.referralCode) {
+      return { viewsCount: 0, registeredCount: 0, transactions: [], totalEarned: 0 };
+    }
+
+    const referredUsers = await (this.prisma as any).user.findMany({
+      where: { referredByCode: user.referralCode } as any,
+      select: { id: true, referralBonusPaid: true },
+    });
+
+    const referredUserIds = referredUsers.map((u: any) => u.id);
+
+    if (referredUserIds.length === 0) {
+      return {
+        viewsCount: user.referralViewsCount || 0,
+        registeredCount: 0,
+        transactions: [],
+        totalEarned: 0,
+      };
+    }
+
+    const rawTx = await this.prisma.transaction.findMany({
+      where: { userId: { in: referredUserIds }, status: 'success' },
+      select: {
+        id: true,
+        userId: true,
+        realPrice: true,
+        balanceDiscount: true,
+        createdAt: true,
+        cheat: { select: { titleRu: true, titleEn: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Find the first tx id per referred user (earliest date = where bonus was triggered)
+    const firstTxByUser: Record<string, string> = {};
+    for (const refUser of referredUsers as any[]) {
+      if (refUser.referralBonusPaid) {
+        const userTxs = rawTx
+          .filter((t) => t.userId === refUser.id)
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        if (userTxs.length > 0) firstTxByUser[refUser.id] = userTxs[0].id;
+      }
+    }
+
+    let totalEarned = 0;
+    const transactions = rawTx.map((t) => {
+      const isFirst = firstTxByUser[t.userId] === t.id;
+      const bonusBase = Math.max(
+        Number(t.realPrice || 0) - Number((t as any).balanceDiscount || 0),
+        0,
+      );
+      const earned = isFirst ? Math.round((bonusBase * 5) / 100 * 100) / 100 : 0;
+      totalEarned += earned;
+      return {
+        id: t.id,
+        createdAt: t.createdAt,
+        cheatTitleRu: t.cheat?.titleRu ?? null,
+        cheatTitleEn: t.cheat?.titleEn ?? null,
+        earned,
+      };
+    });
+
+    return {
+      viewsCount: user.referralViewsCount || 0,
+      registeredCount: referredUsers.length,
+      transactions,
+      totalEarned: Math.round(totalEarned * 100) / 100,
+    };
+  }
+
+  async getReferralMetrics(referralCode: string) {
+    // Works for both admin referrals (in Referral table) and user referrals (user.referralCode)
+    const referredUsers = await (this.prisma as any).user.findMany({
+      where: { referredByCode: referralCode } as any,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        referralBonusPaid: true,
+      },
+    });
+
+    const referredUserIds = referredUsers.map((u: any) => u.id);
+
+    const purchasedUsers: string[] = [];
+    let transactions: any[] = [];
+
+    if (referredUserIds.length > 0) {
+      transactions = await this.prisma.transaction.findMany({
+        where: { userId: { in: referredUserIds }, status: 'success' },
+        select: { userId: true, realPrice: true, createdAt: true, id: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const uniqueBuyers = new Set(transactions.map((t) => t.userId));
+      purchasedUsers.push(...Array.from(uniqueBuyers));
+    }
+
+    return {
+      referralCode,
+      registeredCount: referredUsers.length,
+      purchasedCount: purchasedUsers.length,
+      totalRevenue: transactions.reduce((sum, t) => sum + Number(t.realPrice || 0), 0),
+      referredUsers,
+      transactions,
+    };
   }
 }

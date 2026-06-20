@@ -94,7 +94,23 @@ export class ReferralController {
     return this.referralService.findByOwner(ownerId);
   }
 
+  @Get('user-referrals')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  getUserReferrals(@Query('page') page = 1, @Query('limit') limit = 30) {
+    return this.referralService.getUserReferrals(Number(page), Number(limit));
+  }
+
+  @Get('metrics/:code')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  getReferralMetrics(@Param('code') code: string) {
+    return this.referralService.getReferralMetrics(code);
+  }
+
   @Get('check/:code')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   checkReferral(@Param('code') code: string) {
     return this.referralService.checkCode(code);
   }
@@ -107,6 +123,12 @@ export class ReferralController {
       req.user,
       req.query.isAlreadyResolved === 'true',
     );
+  }
+
+  @Get('my-stats')
+  @UseGuards(AuthGuard('jwt'))
+  getMyReferralStats(@Req() req: any) {
+    return this.referralService.getMyReferralStats(req.user.id);
   }
 
   @Post('track-view/:code')

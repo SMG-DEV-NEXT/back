@@ -1,6 +1,27 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+function buildReferralCode(name: string, existingCodes: Set<string>): string {
+  const clean = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const prefix = (clean.slice(0, 5) || 'user').padEnd(3, 'x');
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let code: string;
+  let attempts = 0;
+  do {
+    const suffix = Array.from({ length: 2 }, () =>
+      chars[Math.floor(Math.random() * chars.length)],
+    ).join('');
+    code = prefix + suffix;
+    if (++attempts > 200) {
+      code = Array.from({ length: 7 }, () =>
+        chars[Math.floor(Math.random() * chars.length)],
+      ).join('');
+    }
+  } while (existingCodes.has(code));
+  existingCodes.add(code);
+  return code;
+}
+
 const defaultLoyaltyTiers = {
   tiers: [
     { minSpent: 10000, percent: 3 },
@@ -52,6 +73,7 @@ async function main() {
 
   console.log(`\nDone! Updated ${updated} users and prepared loyalty settings.`);
 
+  try {
   console.log('3) Migrating legacy promocode.cheatId into promocode.cheatIds[]...');
   const rawPromocodesResult = await prisma.$runCommandRaw({
     find: 'Promocode',
@@ -111,6 +133,36 @@ async function main() {
   }
 
   console.log(`   Migrated ${migratedPromocodes} promocode(s).`);
+  } catch (e: any) {
+    console.warn(`   Step 3 skipped: ${e?.message}`);
+  }
+
+  console.log('4) Generating referral codes for users who do not have one...');
+  const allUsers = await (prisma as any).user.findMany({
+    where: { referralCode: null } as any,
+    select: { id: true, name: true, email: true },
+  });
+
+  const existingCodes = new Set<string>(
+    (
+      await (prisma as any).user.findMany({
+        where: { referralCode: { not: null } } as any,
+        select: { referralCode: true },
+      })
+    ).map((u: any) => u.referralCode as string),
+  );
+
+  let codesAdded = 0;
+  for (const user of allUsers) {
+    const code = buildReferralCode(user.name || user.email, existingCodes);
+    await (prisma as any).user.update({
+      where: { id: user.id },
+      data: { referralCode: code } as any,
+    });
+    codesAdded++;
+    console.log(`   ${user.email}: referralCode = ${code}`);
+  }
+  console.log(`   Done! Generated codes for ${codesAdded} user(s).`);
   // const allPlans = await prisma.plan.findMany();
   // allPlans.forEach(async (plan) => {
   //   await prisma.period.update({
