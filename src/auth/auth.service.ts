@@ -152,12 +152,30 @@ export class AuthService {
     });
   }
 
+  private async generateUniqueReferralCode(name: string): Promise<string> {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const prefix = name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(0, 5);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const bytes = crypto.randomBytes(2);
+      const suffix = Array.from({ length: 2 }, (_, i) => chars[bytes[i] % chars.length]).join('');
+      const code = prefix + suffix;
+      const existing = await this.prisma.user.findFirst({ where: { referralCode: code } as any });
+      if (!existing) return code;
+    }
+    const bytes = crypto.randomBytes(5);
+    const suffix = Array.from({ length: 5 }, (_, i) => chars[bytes[i] % chars.length]).join('');
+    return prefix + suffix;
+  }
+
   async register(
     name: string,
     email: string,
     password: string,
     lang: string,
     token: string,
+    referralCode?: string,
+    ip?: string,
+    userAgent?: string,
   ): Promise<any> {
     await this.recaptchaService.validate(token);
     const normalizedEmail = this.normalizeEmail(email);
@@ -166,6 +184,30 @@ export class AuthService {
     if (existingUser) {
       throw new BadRequestException('email_already_exists');
     }
+
+    // Validate referral code if provided
+    let validatedRefCode: string | null = null;
+    const trimmedRefCode = referralCode?.trim();
+    if (trimmedRefCode) {
+      const refByUser = await this.prisma.user.findFirst({ where: { referralCode: trimmedRefCode } as any });
+      const refByReferral = await (this.prisma as any).referral.findUnique({ where: { code: trimmedRefCode } });
+      if (!refByUser && !refByReferral) {
+        throw new BadRequestException('invalid_referral_code');
+      }
+      // IP fraud check: block if another account from this IP already used this referral code
+      if (ip && process.env.NODE_ENV !== 'development') {
+        const ipDuplicate = await (this.prisma as any).user.findFirst({
+          where: { registrationIp: ip, referredByCode: trimmedRefCode } as any,
+        });
+        if (ipDuplicate) {
+          throw new BadRequestException('ip_referral_duplicate');
+        }
+      }
+      validatedRefCode = trimmedRefCode;
+    }
+
+    const userReferralCode = await this.generateUniqueReferralCode(name);
+
     const user = await this.prisma.user.create({
       data: {
         name,
@@ -176,11 +218,18 @@ export class AuthService {
         isTwoFactorEnabled: false,
         resetCode: '',
         accept: false,
-      },
+        referralCode: userReferralCode,
+        referredByCode: validatedRefCode || null,
+        registrationIp: ip || null,
+      } as any,
       include: {
         transactions: true,
         comments: true,
       },
+    });
+
+    await (this.prisma as any).userLog.create({
+      data: { userId: user.id, email: normalizedEmail, action: 'register', ip: ip || null, userAgent: userAgent || null },
     });
     const authToken = await this.tokenService.createToken(user.id);
     await this.mailer.sendFromNoreply(
@@ -219,7 +268,7 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string, code: string, token?: string): Promise<any> {
+  async login(email: string, password: string, code: string, token?: string, ip?: string, userAgent?: string): Promise<any> {
     if (!code && token) {
       await this.recaptchaService.validate(token);
     }
@@ -245,6 +294,9 @@ export class AuthService {
         throw new UnauthorizedException('invalid_code');
       }
     }
+    await (this.prisma as any).userLog.create({
+      data: { userId: user.id, email: user.email, action: 'login', ip: ip || null, userAgent: userAgent || null },
+    });
     const tokens = this.generateTokens(user.id);
     const userWithLoyalty = await this.attachLoyaltyData(user as any);
     return {

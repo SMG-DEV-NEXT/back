@@ -67,7 +67,7 @@ export class AuthController {
     @Req() req: Request,
   ) {
     try {
-      const { name, email, password, lang, token, confirmPassword, repeatEmail } =
+      const { name, email, password, lang, token, confirmPassword, repeatEmail, referralCode } =
         registerDto;
       if (confirmPassword && confirmPassword !== password) {
         throw new BadRequestException('passwords_not_match');
@@ -81,12 +81,17 @@ export class AuthController {
       if (findUser) {
         return res.status(400).send({ message: 'email_exists' });
       }
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+      const userAgent = (req.headers['user-agent'] as string) || null;
       const user = await this.authService.register(
         sanitizedName,
         sanitizedEmail,
         password,
         lang,
         token,
+        referralCode,
+        ip,
+        userAgent,
       );
       const { access_token, refresh_token } = this.authService.generateTokens(
         user.id,
@@ -115,11 +120,15 @@ export class AuthController {
       const { email, password, code, rememberMe, token } = loginDto;
       const sanitizedEmail = this.sanitizeService.sanitizeHtml(email);
       const santizedPassword = this.sanitizeService.sanitizeHtml(password);
+      const loginIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+      const loginUserAgent = (req.headers['user-agent'] as string) || null;
       const data = await this.authService.login(
         sanitizedEmail,
         santizedPassword,
         code,
         token,
+        loginIp,
+        loginUserAgent,
       );
       if (data.secret) {
         return res.status(200).json(data);
@@ -192,6 +201,9 @@ export class AuthController {
           comments: true,
           accept: true,
           isDeactivated: true,
+          referralCode: true,
+          referredByCode: true,
+          referralBonusPaid: true,
           transactions: {
             where: { status: 'success' },
             include: { cheat: true },

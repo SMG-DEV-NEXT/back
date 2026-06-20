@@ -196,6 +196,10 @@ export class UserService {
           comments: {
             include: { cheat: true },
           },
+          logs: {
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          },
         },
       }),
       this.getLoyaltyTiers(),
@@ -247,10 +251,11 @@ export class UserService {
       newPassword = hashedPassword;
     }
 
+    const { referralBonusPaid: _rbp, referralCode: _rc, referredByCode: _rbc, ...safeUpdateData } = updateData as any;
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: {
-        ...updateData,
+        ...safeUpdateData,
         password: newPassword,
       },
     });
