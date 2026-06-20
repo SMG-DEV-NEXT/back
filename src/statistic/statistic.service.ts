@@ -184,6 +184,79 @@ export class StatisticService {
 
     return days.map((n) => +n.toFixed(2));
   }
+  async getTopBuyers() {
+    const groups = await this.prisma.transaction.groupBy({
+      by: ['userId'],
+      where: { status: 'success', userId: { not: null } },
+      _count: { id: true },
+      _sum: { realPrice: true },
+      orderBy: { _sum: { realPrice: 'desc' } },
+      take: 10,
+    });
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: groups.map((g) => g.userId) } },
+      select: { id: true, name: true, email: true, logo: true },
+    });
+
+    return groups.map((g) => {
+      const user = users.find((u) => u.id === g.userId);
+      return {
+        userId: g.userId,
+        name: user?.name ?? '',
+        email: user?.email ?? '',
+        logo: user?.logo ?? '',
+        orders: g._count.id,
+        totalSpent: +(g._sum.realPrice ?? 0).toFixed(0),
+      };
+    });
+  }
+
+  async getPaymentMethodStats() {
+    const groups = await this.prisma.transaction.groupBy({
+      by: ['methodPay'],
+      where: { status: 'success' },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+
+    const total = groups.reduce((sum, g) => sum + g._count.id, 0);
+
+    return groups.map((g) => ({
+      method: g.methodPay,
+      count: g._count.id,
+      percent: total > 0 ? +((g._count.id / total) * 100).toFixed(1) : 0,
+    }));
+  }
+
+  async getTopCheats() {
+    const groups = await this.prisma.transaction.groupBy({
+      by: ['cheatId'],
+      where: { status: 'success' },
+      _count: { id: true },
+      _sum: { realPrice: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 3,
+    });
+
+    const cheats = await this.prisma.cheat.findMany({
+      where: { id: { in: groups.map((g) => g.cheatId) } },
+      select: { id: true, titleRu: true, titleEn: true, imageUrl: true },
+    });
+
+    return groups.map((g) => {
+      const cheat = cheats.find((c) => c.id === g.cheatId);
+      return {
+        cheatId: g.cheatId,
+        titleRu: cheat?.titleRu ?? '',
+        titleEn: cheat?.titleEn ?? '',
+        imageUrl: cheat?.imageUrl ?? '',
+        sales: g._count.id,
+        revenue: +(g._sum.realPrice ?? 0).toFixed(0),
+      };
+    });
+  }
+
   async getRevenueTrend({ range, from, to }) {
     const now = dayjs();
     let startDate: dayjs.Dayjs;

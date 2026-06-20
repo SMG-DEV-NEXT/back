@@ -16,12 +16,12 @@ import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
 import { generateTransaction } from 'src/utils/generateTransaction';
-const WHITELIST = new Set([
-  '168.119.157.136',
-  '168.119.60.227',
-  '178.154.197.79',
-  '51.250.54.238',
-]);
+import { Role } from 'constants/roles';
+import { Roles } from 'src/auth/roles/roles.decorator';
+import { RolesGuard } from 'src/auth/roles/roles.guard';
+import { OptionalJwtAuthGuard } from 'src/utils/isOptionalAuth';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
 
 function getClientIp(req: Request): string {
   const ipHeader =
@@ -38,7 +38,10 @@ function getClientIp(req: Request): string {
 }
 @Controller('checkout')
 export class CheckoutController {
-  constructor(private readonly checkoutService: CheckoutService) { }
+  constructor(
+    private readonly checkoutService: CheckoutService,
+    private readonly auditService: AuditService,
+  ) { }
 
   private getClientInfo(req: any) {
     const forwardedFor = req.headers['x-forwarded-for']?.toString();
@@ -58,21 +61,18 @@ export class CheckoutController {
   }
 
   @Post()
+  @UseGuards(OptionalJwtAuthGuard)
   async checkout(@Body() data: CheckoutDto, @Req() req: any) {
-    try {
-      const user = await req.user;
-      const ip =
-        req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
-        req.socket.remoteAddress;
-      return this.checkoutService.initiatePayment(
-        data,
-        ip,
-        user,
-        this.getClientInfo(req),
-      );
-    } catch (error) {
-      await sendErrorNotification(error);
-    }
+    const user = await req.user;
+    const ip =
+      req.headers['x-forwarded-for']?.toString().split(',')[0] || // If behind proxy
+      req.socket.remoteAddress;
+    return this.checkoutService.initiatePayment(
+      data,
+      ip,
+      user,
+      this.getClientInfo(req),
+    );
   }
 
   @Get('/client')
@@ -105,15 +105,25 @@ export class CheckoutController {
     @Res() res: Response,
   ) {
     const ip = getClientIp(req);
-    // if (!WHITELIST.has(ip)) {
-    //   console.log('hack');
-    //   return res.status(403).send('hack');
-    // }
-    return this.checkoutService.handleCallback(body);
+    void this.auditService.logTransaction(AuditAction.WEBHOOK_RECEIVED, {
+      ip,
+      method: 'POST',
+      endpoint: '/checkout/callback',
+      userAgent: req.headers['user-agent'],
+    }, {
+      metadata: {
+        body: JSON.stringify(body),
+        ip,
+        headers: req.headers as Record<string, any>,
+      },
+    });
+    const result = await this.checkoutService.handleCallback(body, { ip });
+    return res.send(result);
   }
 
   @Post('/b2pay/callback')
-  async b2payCallback(@Body() body: any) {
+  @HttpCode(200)
+  async b2payCallback(@Body() body: any, @Req() req: Request) {
     const status = (body?.status || '').toLowerCase();
     const orderId =
       body?.metadata?.tracking_id ||
@@ -121,12 +131,34 @@ export class CheckoutController {
       body?.orderNumber ||
       body?.order_id;
 
+    void this.auditService.logTransaction(AuditAction.WEBHOOK_RECEIVED, {
+      ip: getClientIp(req),
+      method: 'POST',
+      endpoint: '/checkout/b2pay/callback',
+      userAgent: req.headers['user-agent'],
+    }, {
+      metadata: {
+        MERCHANT_ORDER_ID: orderId,
+        providerPayload: body,
+        provider: 'b2pay',
+        ip: getClientIp(req),
+        headers: req.headers as Record<string, any>,
+      },
+    });
+
     if (!orderId) return { ok: false };
 
     if (['approved', 'success', 'succeeded', 'paid', 'completed'].includes(status)) {
-      await this.checkoutService.handleCallback({
-        MERCHANT_ORDER_ID: orderId,
-      });
+      await this.checkoutService.handleCallback(
+        {
+          MERCHANT_ORDER_ID: orderId,
+          providerPayload: body,
+        },
+        {
+          provider: 'b2pay',
+          ip: getClientIp(req),
+        },
+      );
     }
 
     return { ok: true };
@@ -181,38 +213,53 @@ export class CheckoutController {
     res.send(fileContent);
   }
 
+  @Post('admin/:id/manual-callback')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async manuallyCompletePendingTransaction(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() body: { reason?: string } = {},
+  ) {
+    const user = await req.user;
+    return this.checkoutService.manuallyCompletePendingTransaction(id, user, {
+      reason: body?.reason || 'admin_table_button',
+    });
+  }
+
   @Get('/:id')
-  async getTransactionPreview(@Param() param) {
+  @UseGuards(OptionalJwtAuthGuard)
+  async getTransactionPreview(@Param() param, @Req() req: any) {
     try {
-      return this.checkoutService.getTransactionPreview(param.id);
+      const transaction = await this.checkoutService.getTransactionPreview(param.id);
+      if (req.user) {
+        const owns =
+          (transaction as any).userId === req.user.id ||
+          (transaction as any).email === req.user.email;
+        if (!owns) return null;
+      }
+      return transaction;
     } catch (error) {
       await sendErrorNotification(error);
     }
   }
 
   @Get()
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getFilteredTransactions(
-    @Query('cheatId') cheatId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('search') search?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
-    @Query('referral') referral?: boolean,
-    @Query('reseller') reseller?: boolean,
-    @Query('promo') promo?: boolean,
+    @Query('filters') filtersRaw?: string,
   ) {
     try {
+      const filters: { key: string; value: string }[] = filtersRaw
+        ? JSON.parse(filtersRaw)
+        : [];
       return this.checkoutService.getFilteredTransactions({
-        cheatId,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
         page: parseInt(page, 10),
-        search,
         limit: parseInt(limit, 10),
-        referral,
-        reseller,
-        promo,
+        filters,
       });
     } catch (error) {
       await sendErrorNotification(error);

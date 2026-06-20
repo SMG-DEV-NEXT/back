@@ -36,15 +36,40 @@ async function bootstrap() {
   const uploadPath = process.env.UPLOAD_PATH || 'uploads';
   app.useStaticAssets(join(process.cwd(), '..', uploadPath), {
     prefix: '/api/uploads/',
-    setHeaders: (res, path) => {
-      res.setHeader(
-        'Access-Control-Allow-Origin',
-        process.env.FRONT_URL || 'http://localhost:3000',
-      );
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     },
   });
-  // for rache limit
+  app.use(
+    '/api/checkout/callback',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+  app.use(
+    '/api/checkout/b2pay/callback',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+  app.use(
+    '/api/checkout',
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
+
+  // for rate limit
   if (process.env.NODE_ENV !== 'development') {
     app.use(
       rateLimit({
@@ -54,17 +79,35 @@ async function bootstrap() {
     );
   }
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.use(
     helmet({
       referrerPolicy: { policy: 'origin-when-cross-origin' },
     }),
   ); // Adds security headers
   app.enableCors({
-    origin: [process.env.FRONT_URL, process.env.ADMIN_URL], // Replace with frontend URL
-    credentials: true, // Allow cookies
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        origin === 'https://smgcheats.com' ||
+        origin.endsWith('.smgcheats.com') ||
+        origin === 'http://localhost:3000' ||
+        origin === 'http://localhost:3001'
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,x-audit-password',
   });
   await app.listen(process.env.PORT || 4000, '0.0.0.0');
 }

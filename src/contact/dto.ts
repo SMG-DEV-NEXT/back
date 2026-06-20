@@ -45,6 +45,9 @@ export class CreateContactDto {
 
   @IsString()
   icon: string;
+
+  @IsBoolean()
+  footer: boolean
 }
 
-export class UpdateContactDto extends PartialType(CreateContactDto) {}
+export class UpdateContactDto extends PartialType(CreateContactDto) { }

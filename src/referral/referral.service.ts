@@ -18,6 +18,14 @@ export class ReferralService {
         code: dto.code,
       },
     });
+    if (dto.userAccountEmail) {
+      const ownerExists = await this.prisma.user.findFirst({
+        where: { email: dto.userAccountEmail },
+      });
+      if (!ownerExists) {
+        throw new BadRequestException('user_not_found');
+      }
+    }
     if (find) {
       return new BadRequestException('This item already have.');
     }
@@ -74,6 +82,14 @@ export class ReferralService {
     }
 
     try {
+      if (dto.userAccountEmail) {
+        const ownerExists = await this.prisma.user.findFirst({
+          where: { email: dto.userAccountEmail },
+        });
+        if (!ownerExists) {
+          throw new BadRequestException('user_not_found');
+        }
+      }
       return await this.prisma.referral.update({
         where: { id },
         data: { ...dto },
@@ -175,7 +191,23 @@ export class ReferralService {
     return this.prisma.referral.findFirst({
       where: { id },
       include: {
-        transactions: true,
+        transactions: {
+          include: {
+            cheat: {
+              include: {
+                catalog: {
+                  select: {
+                    link: true,
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
       },
     });
   }

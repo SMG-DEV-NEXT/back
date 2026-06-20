@@ -20,10 +20,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       secretOrKey: process.env.JWT_SECRET,
       ignoreExpiration: false,
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: { userId: string }) {
+  async validate(_req: Request, payload: { userId: string }) {
     if (!payload.userId) {
       throw new HttpException(
         'Invalid token payload',
@@ -41,6 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         twoFactorSecret: true,
         isTwoFactorEnabled: true,
         isAdmin: true,
+        role: true,
         comments: true,
         accept: true,
         transactions: {

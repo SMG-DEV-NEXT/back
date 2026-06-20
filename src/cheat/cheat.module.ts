@@ -4,9 +4,10 @@ import { CheatService } from './cheat.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PlanService } from 'src/plan/plan.service';
 import { AuthModule } from 'src/auth/auth.module';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
-  imports: [AuthModule], // Import the AuthModule
+  imports: [AuthModule, AuditModule],
   controllers: [CheatController],
   providers: [CheatService, PrismaService, PlanService],
 })

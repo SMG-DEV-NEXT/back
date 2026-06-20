@@ -1,20 +1,43 @@
 import {
+  Allow,
   IsString,
   IsOptional,
-  IsArray,
-  IsNumber,
   IsObject,
 } from 'class-validator';
 
 export class CreatePlanDto {
   @IsString()
   cheatId: string;
+
+  @Allow()
+  @IsOptional()
+  cheat?: Record<string, any>;
 }
 
 export class UpdatePlanDto {
   @IsString()
   @IsOptional()
+  id?: string;
+
+  @IsString()
+  @IsOptional()
   cheatId?: string;
+
+  @IsString()
+  @IsOptional()
+  dayId?: string;
+
+  @IsString()
+  @IsOptional()
+  weekId?: string;
+
+  @IsString()
+  @IsOptional()
+  monthId?: string;
+
+  @Allow()
+  @IsOptional()
+  cheat?: Record<string, any>;
 
   @IsObject()
   day: {

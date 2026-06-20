@@ -7,6 +7,7 @@ import {
   IsEnum,
   IsOptional,
   Max,
+  MaxLength,
   Min,
   MinLength,
   isString,
@@ -16,13 +17,15 @@ import { IsEmail, IsIn, IsNumberString } from 'class-validator';
 export class CommentCreate {
   @IsString()
   @MinLength(1, { message: 'Comment must not be empty' })
+  @MaxLength(300, { message: 'Comment must not exceed 300 characters' })
   text: string;
 
   @IsString()
   cheatId: string;
 
   @IsNumber()
-  @Max(5)
+  @Min(1, { message: 'Stars must be at least 1' })
+  @Max(5, { message: 'Stars must be at most 5' })
   stars: number;
 }
 
@@ -69,9 +72,12 @@ export class getComment {
 
 export class UpdateComment {
   @IsString()
+  @MinLength(1, { message: 'Comment must not be empty' })
+  @MaxLength(300, { message: 'Comment must not exceed 300 characters' })
   text: string;
 
   @IsNumber()
-  @Max(5)
+  @Min(1, { message: 'Stars must be at least 1' })
+  @Max(5, { message: 'Stars must be at most 5' })
   stars: number;
 }

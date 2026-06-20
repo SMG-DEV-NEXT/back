@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { RolesGuard } from 'src/auth/roles/roles.guard';
@@ -21,12 +22,17 @@ import {
 import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('stats')
 export class StatsController {
-  constructor(private readonly statsService: StatsService) { }
+  constructor(
+    private readonly statsService: StatsService,
+    private readonly audit: AuditService,
+  ) {}
 
-  // 1. Get all games with count of stats
   @Get('/games')
   async getAllGamesWithStatsCount() {
     try {
@@ -36,7 +42,6 @@ export class StatsController {
     }
   }
 
-  //3. get stats of catalog
   @Get('/game/:id')
   async getStatsOfCatalog(
     @Param() params: { id: string },
@@ -49,7 +54,6 @@ export class StatsController {
     }
   }
 
-  // 2. Get all stats of a catalog
   @Get('/admin')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -97,42 +101,59 @@ export class StatsController {
     }
   }
 
-  // 4. Create a stat for a game (Only Admin)
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post('/')
-  async createStat(@Body() createStatsDto: CreateStatDto) {
+  async createStat(@Body() createStatsDto: CreateStatDto, @Req() req: any) {
     try {
-      return this.statsService.createStatForGame(
+      const result = await this.statsService.createStatForGame(
         createStatsDto.catalogId,
         createStatsDto,
       );
+      void this.audit.logAdmin(AuditAction.ADMIN_CREATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Stat',
+        metadata: { id: (result as any)?.id, catalogId: createStatsDto.catalogId },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
   }
 
-  // 5. Update a stat (Only Admin)
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Patch('/:statId')
   async updateStat(
     @Param('statId') statId: string,
     @Body() updateStatsDto: UpdateStatsDto,
+    @Req() req: any,
   ) {
     try {
-      return this.statsService.updateStat(statId, updateStatsDto);
+      const result = await this.statsService.updateStat(statId, updateStatsDto);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Stat',
+        metadata: { id: statId },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
   }
 
-  // 6. Delete a stat (Only Admin)
-  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Delete('/:statId')
-  async deleteStat(@Param('statId') statId: string) {
+  async deleteStat(@Param('statId') statId: string, @Req() req: any) {
     try {
-      return this.statsService.deleteStat(statId);
+      const result = await this.statsService.deleteStat(statId);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Stat',
+        metadata: { id: statId },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }

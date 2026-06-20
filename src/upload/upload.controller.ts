@@ -5,16 +5,19 @@ import {
   UseInterceptors,
   HttpException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { multerOptions } from './multer.config';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('upload')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('image')
+  @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('file', multerOptions))
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
     try {

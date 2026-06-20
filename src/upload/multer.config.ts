@@ -23,6 +23,6 @@ export const multerOptions = {
     },
   }),
   limits: {
-    fileSize: 1024 * 1024 * 1024, // 1 GB
+    fileSize: 1024 * 1024 * 10, // 10 MB
   },
 };

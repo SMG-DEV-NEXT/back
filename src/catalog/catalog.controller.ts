@@ -9,6 +9,7 @@ import {
   Delete,
   Query,
   ParseIntPipe,
+  Req,
 } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import { Prisma } from '@prisma/client';
@@ -18,10 +19,17 @@ import { RolesGuard } from 'src/auth/roles/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateDto } from './dto';
 import sendErrorNotification from 'src/utils/sendTGError';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction } from 'constants/audit-actions';
+import { getAuditCtx } from 'src/utils/audit-ctx';
 
 @Controller('catalog')
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) { }
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly audit: AuditService,
+  ) {}
+
   @Get('/top')
   async getTopCatalogs() {
     try {
@@ -30,12 +38,19 @@ export class CatalogController {
       await sendErrorNotification(error);
     }
   }
+
   @Post()
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async createCatalog(@Body() data: CreateDto) {
+  async createCatalog(@Body() data: CreateDto, @Req() req: any) {
     try {
-      return this.catalogService.createCatalog(data);
+      const result = await this.catalogService.createCatalog(data);
+      void this.audit.logAdmin(AuditAction.ADMIN_CREATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Catalog',
+        metadata: { id: result?.id, title: data?.title },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -47,9 +62,16 @@ export class CatalogController {
   async updateCatalog(
     @Param('id') id: string,
     @Body() data: Prisma.CatalogUpdateInput,
+    @Req() req: any,
   ) {
     try {
-      return this.catalogService.updateCatalog(id, data);
+      const result = await this.catalogService.updateCatalog(id, data);
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Catalog',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -89,6 +111,8 @@ export class CatalogController {
   }
 
   @Get('/admin/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   async getCatalogAdmin(@Param('id') id: string) {
     try {
       return this.catalogService.getCatalogAdmin(id);
@@ -109,9 +133,15 @@ export class CatalogController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async deleteCatalog(@Param('id') id: string) {
+  async deleteCatalog(@Param('id') id: string, @Req() req: any) {
     try {
-      return this.catalogService.deleteCatalog(id);
+      const result = await this.catalogService.deleteCatalog(id);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Catalog',
+        metadata: { id },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
@@ -120,9 +150,15 @@ export class CatalogController {
   @Delete()
   @Roles(Role.ADMIN)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  async deleteMultipleCatalogs(@Body('ids') ids: string[]) {
+  async deleteMultipleCatalogs(@Body('ids') ids: string[], @Req() req: any) {
     try {
-      return this.catalogService.deleteMultipleCatalogs(ids);
+      const result = await this.catalogService.deleteMultipleCatalogs(ids);
+      void this.audit.logAdmin(AuditAction.ADMIN_DELETE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Catalog',
+        metadata: { ids, count: ids?.length },
+      });
+      return result;
     } catch (error) {
       await sendErrorNotification(error);
     }
