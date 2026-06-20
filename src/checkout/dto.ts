@@ -35,6 +35,7 @@ export enum CheckoutPaymentMethod {
   FK = 'fk',
   PALLY = 'pally',
   B2PAY = 'b2pay',
+  OVERPAY = 'overpay',
 }
 
 export class CheckoutDto {

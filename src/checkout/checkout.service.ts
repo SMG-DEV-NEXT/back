@@ -19,6 +19,8 @@ import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { MailService } from 'src/mail/mail.service';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as https from 'https';
 import axios from 'axios';
 import * as FormData from 'form-data';
 import * as bcrypt from 'bcryptjs';
@@ -28,7 +30,7 @@ import { AuditAction } from 'constants/audit-actions';
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
-  private readonly allowedPaymentMethods = new Set(['fk', 'pally', 'b2pay']);
+  private readonly allowedPaymentMethods = new Set(['fk', 'pally', 'b2pay', 'overpay']);
   private readonly allowedCurrencies = new Set(['RUB', 'USD']);
   private readonly maxCheckoutPriceRub = Number(
     process.env.MAX_CHECKOUT_PRICE_RUB || 1_000_000,
@@ -220,7 +222,7 @@ export class CheckoutService {
   validateCallback(
     data: any,
     context: {
-      provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
+      provider?: 'fk' | 'pally' | 'b2pay' | 'overpay' | 'internal';
       ip?: string;
     } = {},
   ): { orderId: string; verified: boolean } {
@@ -590,6 +592,86 @@ export class CheckoutService {
         upstreamError?.message ||
         upstreamError?.details ||
         'B2Pay payment failed',
+      );
+    }
+  }
+
+  async createPaymentOverpay(
+    orderId: string,
+    amount: number,
+    currency: string,
+    email: string,
+    locale: string,
+    ip: string,
+  ) {
+    try {
+      const apiUrl = process.env.OVERPAY_API_URL;
+      const username = process.env.OVERPAY_USERNAME;
+      const password = process.env.OVERPAY_PASSWORD;
+      const certPath = process.env.OVERPAY_CERT_PATH;
+      const certPassphrase = process.env.OVERPAY_CERT_PASSPHRASE || '';
+      const projectId = process.env.OVERPAY_PROJECT_ID;
+
+      if (!apiUrl || !username || !password || !certPath || !projectId) {
+        throw new BadGatewayException('Overpay credentials are not configured');
+      }
+
+      const p12 = fs.readFileSync(certPath);
+      const httpsAgent = new https.Agent({ pfx: p12, passphrase: certPassphrase });
+      console.log(
+        apiUrl,
+        {
+          amount: Number(amount.toFixed(2)).toString(),
+          currency,
+          livetimeMinutes: 60,
+          description: `Payment for order #${orderId}`,
+          merchantTransactionId: orderId,
+          projectId,
+          returnUrl: `${process.env.FRONT_URL}/${locale}/preview/${orderId}`,
+          client: { email },
+        },
+      )
+      const res = await axios.post(
+        apiUrl,
+        {
+          amount: Number(amount.toFixed(2)).toString(),
+          currency,
+          livetimeMinutes: 60,
+          description: `Payment for order #${orderId}`,
+          merchantTransactionId: orderId,
+          projectId,
+          returnUrl: `${process.env.FRONT_URL}/${locale}/preview/${orderId}`,
+          client: { email },
+        },
+        {
+          httpsAgent,
+          auth: { username, password },
+          headers: { 'Content-Type': 'application/json' },
+          proxy: false,
+        },
+      );
+
+      const resultUrl = res.data?.resultUrl || res.data?.result_url || res.data?.payUrl;
+
+      if (!resultUrl) {
+        throw new Error(`Overpay invalid response: resultUrl missing — ${JSON.stringify(res.data)}`);
+      }
+
+      return resultUrl as string;
+    } catch (err) {
+      const upstreamError = err?.response?.data;
+      const upstreamStatus = err?.response?.status;
+      void this.audit.logPaymentProviderError('overpay', { ip, method: 'POST', endpoint: '/checkout' }, {
+        orderId,
+        amount,
+        currency,
+        error: upstreamError?.message || upstreamError?.error || err?.message,
+        metadata: { status: upstreamStatus, data: upstreamError },
+      });
+      throw new BadGatewayException(
+        upstreamError?.message ||
+        upstreamError?.error ||
+        'Overpay payment failed',
       );
     }
   }
@@ -1014,17 +1096,17 @@ export class CheckoutService {
       console.log(finalPrice, data.methodPay)
 
       // const amountStr = Number(finalPrice).toFixed(2); // "2000.00"
-      if (process.env.NODE_ENV === 'development' && process.env.CHECKOUT_AUTO_SUCCESS === 'true') {
-        await this.handleCallback(
-          {
-            MERCHANT_ORDER_ID: orderId,
-            __internalCheckout: true,
-            reason: 'DEVELOPMENT_AUTO_SUCCESS',
-          },
-          { provider: 'internal' },
-        );
-        return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
-      }
+      // if (process.env.NODE_ENV === 'development' && process.env.CHECKOUT_AUTO_SUCCESS === 'true') {
+      //   await this.handleCallback(
+      //     {
+      //       MERCHANT_ORDER_ID: orderId,
+      //       __internalCheckout: true,
+      //       reason: 'DEVELOPMENT_AUTO_SUCCESS',
+      //     },
+      //     { provider: 'internal' },
+      //   );
+      //   return `${process.env.FRONT_URL}/${data.locale}/preview/${orderId}`;
+      // }
       let payUrl = '';
       switch (data.methodPay) {
         case 'fk':
@@ -1053,6 +1135,16 @@ export class CheckoutService {
             finalPrice,
             data.currency,
             transaction.email,
+            ip,
+          );
+          break;
+        case 'overpay':
+          payUrl = await this.createPaymentOverpay(
+            orderId,
+            finalPrice,
+            data.currency,
+            transaction.email,
+            data.locale,
             ip,
           );
           break;
@@ -1126,10 +1218,11 @@ export class CheckoutService {
   async handleCallback(
     data: any,
     context: {
-      provider?: 'fk' | 'pally' | 'b2pay' | 'internal';
+      provider?: 'fk' | 'pally' | 'b2pay' | 'overpay' | 'internal';
       ip?: string;
     } = {},
   ) {
+    console.log(data, context)
     try {
       if (!context.provider) {
         const rawOrderId = data?.MERCHANT_ORDER_ID || data?.InvId || data?.order_id;
@@ -1150,7 +1243,7 @@ export class CheckoutService {
           throw new NotFoundException('Transaction not found');
         }
 
-        context = { ...context, provider: preflight.methodPay as 'fk' | 'pally' | 'b2pay' };
+        context = { ...context, provider: preflight.methodPay as 'fk' | 'pally' | 'b2pay' | 'overpay' };
       }
 
       const { orderId, verified } = this.validateCallback(data, context);
@@ -1611,6 +1704,8 @@ export class CheckoutService {
       where: { id: transaction.id },
       data: { isVisited: true },
     });
+    this.securityLog('already_opened', { transactionId, orderId: transaction.orderId, isVisited: transaction.isVisited });
+
     // if (!transaction.isVisited) return transaction;
     return transaction;
   }

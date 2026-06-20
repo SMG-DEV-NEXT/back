@@ -164,6 +164,50 @@ export class CheckoutController {
     return { ok: true };
   }
 
+  @Post('/overpay/callback')
+  @HttpCode(200)
+  async overpayCallback(@Body() body: any, @Req() req: Request) {
+    const ip = getClientIp(req);
+    const status = (body?.status || '').toLowerCase();
+    const orderId =
+      body?.merchantTransactionId ||
+      body?.merchant_transaction_id ||
+      body?.orderId ||
+      body?.order_id;
+
+    void this.auditService.logTransaction(AuditAction.WEBHOOK_RECEIVED, {
+      ip,
+      method: 'POST',
+      endpoint: '/checkout/overpay/callback',
+      userAgent: req.headers['user-agent'],
+    }, {
+      metadata: {
+        MERCHANT_ORDER_ID: orderId,
+        providerPayload: body,
+        provider: 'overpay',
+        ip,
+        headers: req.headers as Record<string, any>,
+      },
+    });
+
+    if (!orderId) return { ok: false };
+
+    if (['approved', 'success', 'succeeded', 'paid', 'completed'].includes(status)) {
+      await this.checkoutService.handleCallback(
+        {
+          MERCHANT_ORDER_ID: orderId,
+          providerPayload: body,
+        },
+        {
+          provider: 'overpay',
+          ip,
+        },
+      );
+    }
+
+    return { ok: true };
+  }
+
   @Get('document')
   @UseGuards(AuthGuard('jwt'))
   async downloadDocument(
