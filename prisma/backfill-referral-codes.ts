@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 const prisma = new PrismaClient();
 const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-async function generateUniqueCode(seed: string, usedCodes: Set<string>): Promise<string> {
+function generateUniqueCode(seed: string, usedCodes: Set<string>): string {
   const prefix = (seed || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(0, 5);
   for (let attempt = 0; attempt < 50; attempt++) {
     const bytes = crypto.randomBytes(3);
@@ -16,40 +16,45 @@ async function generateUniqueCode(seed: string, usedCodes: Set<string>): Promise
     }
   }
   const bytes = crypto.randomBytes(6);
-  return Array.from({ length: 6 }, (_, i) => chars[bytes[i] % chars.length]).join('');
+  const code = Array.from({ length: 6 }, (_, i) => chars[bytes[i] % chars.length]).join('');
+  usedCodes.add(code);
+  return code;
 }
 
 async function main() {
-  // Fetch all users and filter client-side — avoids Prisma/MongoDB null-vs-missing mismatch
-  // Do NOT select `name`: some docs have name=null while the schema marks it
-  // non-nullable, which makes Prisma throw P2032. `email` is the login field
-  // and is reliably present; use it only as a cosmetic code prefix.
-  const allUsers = await (prisma.user.findMany as any)({
-    select: { id: true, email: true, referralCode: true },
-  }) as Array<{ id: string; email: string | null; referralCode: string | null }>;
+  // Read/write via raw Mongo to bypass Prisma schema validation: prod has User
+  // docs with null name/email while the schema marks them non-nullable, which
+  // makes any typed prisma.user query throw P2032.
+  const res: any = await prisma.$runCommandRaw({
+    find: 'User',
+    filter: {},
+    projection: { _id: 1, email: 1, referralCode: 1 },
+    batchSize: 1_000_000,
+  });
 
-  const users = allUsers.filter((u) => !u.referralCode);
-  console.log(`Total users: ${allUsers.length}, need referral codes: ${users.length}`);
+  const docs: any[] = res?.cursor?.firstBatch ?? [];
+  const usedCodes = new Set<string>(
+    docs.map((d) => d.referralCode).filter(Boolean) as string[],
+  );
 
-  if (users.length === 0) {
+  const needCodes = docs.filter((d) => !d.referralCode);
+  console.log(`Total users: ${docs.length}, need referral codes: ${needCodes.length}`);
+
+  if (needCodes.length === 0) {
     console.log('Nothing to do.');
     return;
   }
 
-  const usedCodes = new Set(
-    allUsers.map((u) => u.referralCode).filter(Boolean) as string[],
-  );
-
   let updated = 0;
-  for (const user of users) {
-    const code = await generateUniqueCode((user.email ?? '').split('@')[0], usedCodes);
-    await (prisma.user.update as any)({
-      where: { id: user.id },
-      data: { referralCode: code },
-      select: { id: true },
+  for (const doc of needCodes) {
+    const id = doc._id?.$oid ?? doc._id;
+    const code = generateUniqueCode((doc.email ?? '').split('@')[0], usedCodes);
+    await prisma.$runCommandRaw({
+      update: 'User',
+      updates: [{ q: { _id: { $oid: id } }, u: { $set: { referralCode: code } } }],
     });
     updated++;
-    if (updated % 50 === 0) console.log(`Updated ${updated}/${users.length}`);
+    if (updated % 50 === 0) console.log(`Updated ${updated}/${needCodes.length}`);
   }
 
   console.log(`Done — assigned referral codes to ${updated} users`);
