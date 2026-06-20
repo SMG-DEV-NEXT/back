@@ -371,7 +371,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          proxy:false
+          proxy: false
         },
       );
     } catch (err) {
@@ -446,8 +446,8 @@ export class CheckoutService {
       const response = await axios.post('https://api.fk.life/v1/orders/create', {
         ...data,
         signature,
-      },{
-        proxy:false
+      }, {
+        proxy: false
       });
       return response.data?.location;
     } catch (err) {
@@ -480,7 +480,7 @@ export class CheckoutService {
           Authorization: `Bearer ${process.env.PALLY_TOKEN}`,
           ...form.getHeaders(),
         },
-        proxy:false
+        proxy: false
       });
       return response.data.link_page_url;
     } catch (err) {
@@ -530,7 +530,7 @@ export class CheckoutService {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          proxy:false
+          proxy: false
         },
       );
 
