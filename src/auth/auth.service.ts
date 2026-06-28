@@ -217,7 +217,7 @@ export class AuthService {
         raiting: '0',
         isTwoFactorEnabled: false,
         resetCode: '',
-        accept: false,
+        accept: process.env.NODE_ENV === 'development' ? true : false,
         referralCode: userReferralCode,
         referredByCode: validatedRefCode || null,
         registrationIp: ip || null,
@@ -227,7 +227,7 @@ export class AuthService {
         comments: true,
       },
     });
-
+    if (process.env.NODE_ENV !== 'development') return user; // Skip email verification in dev mode
     await (this.prisma as any).userLog.create({
       data: { userId: user.id, email: normalizedEmail, action: 'register', ip: ip || null, userAgent: userAgent || null },
     });

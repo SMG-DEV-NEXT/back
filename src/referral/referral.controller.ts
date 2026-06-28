@@ -11,7 +11,7 @@ import {
   Delete,
   Req,
 } from '@nestjs/common';
-import { CreateReferralDto, UpdateReferralDto } from './dto';
+import { CreateReferralDto, MergeReferralDto, UpdateReferralDto } from './dto';
 import { Role } from 'constants/roles';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/roles/roles.decorator';
@@ -56,6 +56,31 @@ export class ReferralController {
       entity: 'Referral',
       metadata: { id },
     });
+    return result;
+  }
+
+  @Post('merge/:id')
+  @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  async merge(
+    @Param('id') id: string,
+    @Body() dto: MergeReferralDto,
+    @Req() req: any,
+  ) {
+    const result = await this.referralService.mergeIntoUserAccount(id, dto);
+    if (!dto?.dryRun) {
+      void this.audit.logAdmin(AuditAction.ADMIN_UPDATE, getAuditCtx(req), {
+        adminId: req.user?.id,
+        entity: 'Referral',
+        metadata: {
+          id,
+          action: 'merge_into_user',
+          userEmail: (result as any)?.userEmail,
+          credited: (result as any)?.credited,
+          totalBonus: (result as any)?.totalBonus,
+        },
+      });
+    }
     return result;
   }
 

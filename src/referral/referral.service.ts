@@ -6,12 +6,26 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateReferralDto, UpdateReferralDto } from './dto';
+import { CreateReferralDto, MergeReferralDto, UpdateReferralDto } from './dto';
 import { User } from '@prisma/client';
+
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+
+// Bonus actions that already credited a referrer for a given transaction.
+// Used to make merge idempotent (never pay twice for the same transaction).
+const REFERRAL_BONUS_ACTIONS = [
+  'REFERRAL_BONUS_CALLBACK',
+  'ACCUMULATING_REFERRAL_BONUS',
+  'REFERRAL_MERGE_BONUS',
+];
 
 @Injectable()
 export class ReferralService {
   constructor(private readonly prisma: PrismaService) { }
+
+  private roundMoney(value: number): number {
+    return Math.round((Number(value) || 0) * 100) / 100;
+  }
 
   async create(dto: CreateReferralDto) {
     const find = await this.prisma.referral.findFirst({
@@ -361,6 +375,192 @@ export class ReferralService {
       registeredCount: referredUsers.length,
       transactions,
       totalEarned: Math.round(totalEarned * 100) / 100,
+    };
+  }
+
+  /**
+   * Merge a manual (admin) referral into a real user account.
+   *
+   * Re-attributes the referral to the user (sets userAccountEmail so future
+   * purchases pay this account via the existing checkout logic) and credits the
+   * user retroactively for every successful transaction made on the referral,
+   * at the referral's prcentToBalance rate. Idempotent: transactions that
+   * already credited a referral bonus to this user are skipped, so the action
+   * can be re-run safely. Self-purchases by the target user are skipped.
+   */
+  async mergeIntoUserAccount(referralId: string, dto: MergeReferralDto = {}) {
+    if (!OBJECT_ID_RE.test(referralId)) {
+      throw new BadRequestException('invalid_referral_id');
+    }
+
+    const referral = await this.prisma.referral.findUnique({
+      where: { id: referralId },
+    });
+    if (!referral) throw new NotFoundException('Referral not found');
+
+    // Resolve the target account: explicit admin override wins, otherwise the
+    // referral's stored userAccountEmail (auto-match).
+    const targetEmail = (dto.targetUserEmail || referral.userAccountEmail || '').trim();
+    if (!targetEmail) {
+      throw new BadRequestException('no_target_user_email');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { email: { equals: targetEmail, mode: 'insensitive' } },
+    });
+    if (!user) throw new BadRequestException('target_user_not_found');
+
+    const bonusPercent = Number(referral.prcentToBalance || 0);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: { referralId: referral.id, status: 'success' },
+      select: {
+        id: true,
+        userId: true,
+        email: true,
+        realPrice: true,
+        balanceDiscount: true,
+        orderId: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Build the set of transaction ids that already paid a referral bonus to
+    // this user (from any of the bonus flows), to avoid double-crediting.
+    const history = await (this.prisma as any).balanceHistory.findMany({
+      where: { userId: user.id, type: 'ADD_BALANCE' },
+      select: { information: true },
+    });
+    const paidTxIds = new Set<string>();
+    for (const h of history as { information: string }[]) {
+      try {
+        const info = JSON.parse(h.information || '{}');
+        if (
+          info?.transactionId &&
+          REFERRAL_BONUS_ACTIONS.includes(info?.action)
+        ) {
+          paidTxIds.add(String(info.transactionId));
+        }
+      } catch {
+        // ignore malformed history rows
+      }
+    }
+
+    // Compute the credits to apply.
+    const credits: {
+      transactionId: string;
+      orderId: string | null;
+      buyerEmail: string;
+      buyerUserId: string | null;
+      bonusBase: number;
+      bonus: number;
+    }[] = [];
+    let skipped = 0;
+
+    for (const t of transactions) {
+      // Can't earn a referral bonus from your own purchase.
+      if (t.userId && t.userId === user.id) {
+        skipped++;
+        continue;
+      }
+      if (paidTxIds.has(t.id)) {
+        skipped++;
+        continue;
+      }
+      const bonusBase = this.roundMoney(
+        Math.max(Number(t.realPrice || 0) - Number(t.balanceDiscount || 0), 0),
+      );
+      const bonus = this.roundMoney((bonusBase * bonusPercent) / 100);
+      if (bonus <= 0) {
+        skipped++;
+        continue;
+      }
+      credits.push({
+        transactionId: t.id,
+        orderId: t.orderId ?? null,
+        buyerEmail: t.email,
+        buyerUserId: t.userId ?? null,
+        bonusBase,
+        bonus,
+      });
+    }
+
+    const totalBonus = this.roundMoney(
+      credits.reduce((sum, c) => sum + c.bonus, 0),
+    );
+
+    if (dto.dryRun) {
+      return {
+        dryRun: true,
+        userEmail: user.email,
+        userId: user.id,
+        bonusPercent,
+        transactionsTotal: transactions.length,
+        credited: credits.length,
+        skipped,
+        totalBonus,
+      };
+    }
+
+    // Apply atomically: link the referral to the account and credit each
+    // transaction's bonus with an auditable balance-history entry.
+    await this.prisma.$transaction(async (tx) => {
+      if (
+        (referral.userAccountEmail || '').toLowerCase() !==
+        user.email.toLowerCase()
+      ) {
+        await tx.referral.update({
+          where: { id: referral.id },
+          data: { userAccountEmail: user.email },
+        });
+      }
+
+      let runningBalance = Number((user as any).balance || 0);
+      for (const c of credits) {
+        const balanceBefore = runningBalance;
+        const balanceAfter = this.roundMoney(balanceBefore + c.bonus);
+        runningBalance = balanceAfter;
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: { balance: { increment: c.bonus } } as any,
+        });
+
+        await (tx as any).balanceHistory.create({
+          data: {
+            userId: user.id,
+            type: 'ADD_BALANCE',
+            information: JSON.stringify({
+              action: 'REFERRAL_MERGE_BONUS',
+              balanceBefore,
+              balanceAfter,
+              bonusPercent,
+              bonusAmount: c.bonus,
+              bonusBaseRub: c.bonusBase,
+              referralId: referral.id,
+              referralCode: referral.code,
+              referralOwner: referral.owner,
+              buyerEmail: c.buyerEmail,
+              buyerUserId: c.buyerUserId,
+              transactionId: c.transactionId,
+              orderId: c.orderId,
+              createdAt: new Date().toISOString(),
+            }),
+          },
+        });
+      }
+    });
+
+    return {
+      dryRun: false,
+      userEmail: user.email,
+      userId: user.id,
+      bonusPercent,
+      transactionsTotal: transactions.length,
+      credited: credits.length,
+      skipped,
+      totalBonus,
     };
   }
 

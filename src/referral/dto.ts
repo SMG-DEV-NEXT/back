@@ -24,6 +24,19 @@ export class CreateReferralDto {
   isAccumulating?: boolean;
 }
 
+export class MergeReferralDto {
+  // Optional admin override: merge into the account with this email instead of
+  // the referral's stored userAccountEmail (auto-match).
+  @IsOptional()
+  @IsString()
+  targetUserEmail?: string;
+
+  // When true, returns a preview (counts + totals) without crediting balances.
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
+}
+
 export class UpdateReferralDto {
   @IsOptional()
   @IsString()
