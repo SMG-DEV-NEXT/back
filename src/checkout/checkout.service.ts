@@ -1189,7 +1189,46 @@ export class CheckoutService {
           });
           throw new BadRequestException('Invalid transaction state');
         }
-
+              // ── Provider status guard ──────────────────────────────────────────────────
+        if (context.provider !== 'internal') {
+          const rawStatus: string =
+            data?.status ??
+            data?.Status ??
+            data?.payment_status ??
+            data?.PaymentStatus ??
+            '';
+        
+          const statusStr = String(rawStatus).toLowerCase().trim();
+        
+          const PROVIDER_FAIL: Record<string, string[]> = {
+            fk:    ['failed', 'fail', 'cancelled', 'canceled', 'rejected', 'error', '0'],
+            pally: ['failed', 'fail', 'cancelled', 'canceled', 'rejected', 'error'],
+            b2pay: ['failed', 'fail', 'cancelled', 'canceled', 'rejected', 'error'],
+          };
+        
+          const provider = context.provider as string;
+          const failValues = PROVIDER_FAIL[provider];
+        
+          if (failValues && statusStr !== '') {
+            const isFail = failValues.includes(statusStr);
+          
+            if (isFail) {
+              await tx.transaction.update({
+                where: { id: transaction.id },
+                data: { status: 'pending', jsonPayload: data } as any,
+              });
+            
+              this.securityLog('callback_rejected_failed_status', {
+                orderId,
+                provider,
+                receivedStatus: statusStr,
+                ip: context.ip,
+              });
+              return 'YES'; 
+            }
+          }
+        }
+        // ── End status guard ───────────────────────────────────────────────────────
         this.validatePaymentMethod((transaction as any).methodPay);
         if (
           context.provider &&

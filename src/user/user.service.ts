@@ -163,7 +163,6 @@ export class UserService {
           select: { id: true, visited: true },
         }),
       ]);
-
       const rewardsCount = rewards.length;
       const visitedRewardsCount = rewards.filter((reward: any) => reward.visited).length;
 
